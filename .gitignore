@@ -1,3 +1,9 @@
+*gds/
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+
 # Created by https://www.toptal.com/developers/gitignore/api/macos,windows,linux,git,visualstudiocode,python,jupyternotebooks,latex
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos,windows,linux,git,visualstudiocode,python,jupyternotebooks,latex
 
@@ -602,6 +608,3 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,windows,linux,git,visualstudiocode,python,jupyternotebooks,latex
-# pixi environments
-.pixi/*
-!.pixi/config.toml
