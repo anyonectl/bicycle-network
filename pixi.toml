@@ -1,0 +1,31 @@
+[workspace]
+authors = ["anyonectl <60779694+anyonectl@users.noreply.github.com>"]
+channels = ["conda-forge", "https://conda.anaconda.org/conda-forge"]
+name = "bicycle_network"
+platforms = ["osx-arm64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = "3.14.*"
+mamba = "*"
+notebook = "*"
+jupyterhub = "*"
+jupyterlab = "*"
+blas = { build = "openblas", channel = "conda-forge" }
+numpy = "*"
+pandas = "*"
+geopandas = "*"
+shapely = "*"
+rasterio = "*"
+fiona = "*"
+pyproj = "*"
+pysal = "*"
+osmnx = "*"
+xarray = "*"
+rioxarray = "*"
+contextily = "*"
+pip = "*"
+scikit-learn = "*"
+seaborn = "*"
