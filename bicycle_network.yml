@@ -1,4 +1,4 @@
-name: gds_py
+name: bicycle_network
 channels:
   - conda-forge
 dependencies:
