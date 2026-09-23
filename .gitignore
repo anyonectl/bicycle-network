@@ -1,6 +1,7 @@
-*gds/
-
 data/*
+
+*gds/*
+*red-blob-games/*
 
 # pixi environments
 .pixi/*
