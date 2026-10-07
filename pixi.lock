@@ -79,6 +79,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/frozenlist-1.8.0-pyhf298e5d_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/fsspec-2026.7.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/geographiclib-2.1-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/geohexgrid-3.0.3-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/geopandas-1.1.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/geopandas-base-1.1.4-pyha770c72_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/geopy-2.5.0-pyhd8ed1ab_0.conda
@@ -1308,6 +1309,20 @@ packages:
   run_exports: {}
   size: 40836
   timestamp: 1755865181359
+- conda: https://conda.anaconda.org/conda-forge/noarch/geohexgrid-3.0.3-pyhd8ed1ab_0.conda
+  sha256: 9ccf9121b51b8997b5059ccf77f583fabb80da6c7435583abde25489b137b411
+  md5: 3390ae11c13579f2138dd6da023261ea
+  depends:
+  - geopandas >=0.11.1
+  - numpy
+  - pandas >=2
+  - python >=3.10
+  - shapely
+  license: MIT
+  license_family: MIT
+  run_exports: {}
+  size: 559097
+  timestamp: 1783443369128
 - conda: https://conda.anaconda.org/conda-forge/noarch/geopandas-1.1.4-pyhd8ed1ab_0.conda
   sha256: cd478c0835106afce2478d6dcc525854219c4e710c7b446e2dd5042bfc9da082
   md5: 99d77e0f92f7b0b977f77cfb49c7eaf6
