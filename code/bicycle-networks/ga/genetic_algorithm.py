@@ -47,6 +47,13 @@ def _genetic_algorithm(iterations: int, N: int, demand: List[float], total_deman
         population = children
     return population
 
+# HOW MANY PARENTS CHOSEN FOR PRODUCTION? CAN BE USER CHOICE
+#MUTATION OR not can be decided by probability
+# can also keep some parents
+# everything should be randomised
+# important to allow some of the not so fit route sets to survive to next generation as they can help make better solutions later
+# up to decicde if using 'elitism' or not
+
 ### KEY FUNCTIONS ###
 
 def _initialise(N: int) -> Population:
