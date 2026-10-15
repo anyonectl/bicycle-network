@@ -7,11 +7,9 @@ results/plots/*
 gds
 red-blob-games
 
-### Pixi ###
-*/.pixi/*
+# ### Pixi ###
+.pixi/*
 !.pixi/config.toml
-# pixi.toml
-
 
 ##### TOPTAL #####
 
