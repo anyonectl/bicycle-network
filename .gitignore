@@ -1,11 +1,11 @@
 ##### PROJECT SPECIFICS #####
 
 data/*
-output/plots/*
-!output/plots/start_population.png
+results/plots/*
+!results/plots/start_population.png
 
-*gds/*
-*red-blob-games/*
+gds
+red-blob-games
 
 ### Pixi ###
 */.pixi/*
