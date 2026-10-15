@@ -46,9 +46,9 @@ from typing import List
 def fitness_function(nw: List[int], demand: np.ndarray) -> float:
     """
     Evaluates the fitness of a network.
-    
+
     Args:
-        nw: The network list with indices representing seed point pairs (edges), 
+        nw: The network list with indices representing seed point pairs (edges),
             and a binary value representing whether that edge is included
             in the network or not.
         demand: A list of the same length as nw, containing demand per edge.
@@ -59,7 +59,9 @@ def fitness_function(nw: List[int], demand: np.ndarray) -> float:
     d: np.ndarray = normalised_demand(demand)
     total_demand: float = 0.0
     N: int = len(nw)
-    for i in range(N): # can maybeoptimise by replacing loop with bit string and doing bit hacks?
+    for i in range(
+        N
+    ):  # can maybeoptimise by replacing loop with bit string and doing bit hacks?
         if nw[i] == 1:
             total_demand += d[i]
     return total_demand
