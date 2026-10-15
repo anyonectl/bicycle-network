@@ -3,9 +3,8 @@
 data/*
 results/plots/*
 !results/plots/start_population.png
-
-gds
-red-blob-games
+resources**
+*.ipynb
 
 # ### Pixi ###
 .pixi/*
