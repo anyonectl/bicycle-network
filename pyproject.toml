@@ -1,0 +1,38 @@
+[project]
+authors = [{name = "anyonectl", email = "60779694+anyonectl@users.noreply.github.com"}]
+name = "bicycle-network"
+requires-python = ">= 3.11"
+version = "0.1.0"
+dependencies = ["black>=26.10.1,<27"]
+
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["osx-arm64"]
+
+[tool.pixi.pypi-dependencies]
+bicycle_network = { path = ".", editable = true }
+
+[tool.pixi.tasks]
+
+[tool.pixi.dependencies]
+python = "3.14.*"
+notebook = ">=7.6.3,<8"
+jupyterlab = ">=4.6.4,<5"
+blas = ">=2.311,<3"
+numpy = ">=2.5.4,<3"
+pandas = ">=3.0.6,<4"
+geopandas = ">=1.2.0,<2"
+pyproj = ">=3.8.0,<4"
+geohexgrid = ">=3.0.3,<4"
+pip = ">=26.2.1,<27"
+jupytext = ">=1.19.6,<2"
+
+[tool.pyright]
+include = ["src", "scripts"]
+ignore = ["**/*.ipynb"]
+exclude = ["**/*.ipynb"]
+

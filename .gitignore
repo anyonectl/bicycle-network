@@ -1,17 +1,14 @@
 ##### PROJECT SPECIFICS #####
 
 data/*
-output/plots/*
-!output/plots/start_population.png
+results/plots/*
+!results/plots/start_population.png
+resources**
+*.ipynb
 
-*gds/*
-*red-blob-games/*
-
-### Pixi ###
-*/.pixi/*
+# ### Pixi ###
+.pixi/*
 !.pixi/config.toml
-# pixi.toml
-
 
 ##### TOPTAL #####
 
