@@ -20,7 +20,7 @@
 # ## Imports
 
 # %%
-import geohexgrid as ghg
+from bicycle_network import hex
 import numpy as np
 from shapely import Point, LineString
 import geopandas as gpd
@@ -35,7 +35,7 @@ from typing import List, Tuple
 
 # %%
 hex_radius = 4
-grid = ghg.make_grid_from_bounds(0.0, 0.0, 100.0, 100.0, hex_radius)
+grid = hex.make_test_grid(hex_radius)
 grid["centroid"] = grid["geometry"].centroid
 grid.plot(figsize=(10, 10))
 
@@ -173,61 +173,20 @@ PATH = ROOT + "results/plots/"
 # %% [markdown]
 # ### Helper functions
 #
+# See src/bicycle_network/hex.py
+#
 # TODO: Use spatial indexing to find neighbours instead? Sth with trees?
 
 
 # %%
-def numeric_id(s: str) -> Tuple[int, int]:
-    x, y = s.split(",")
-    return int(x), int(y)
-
-
-def str_id(t: Tuple[int, int]) -> str:
-    return f"{t[0]},{t[1]}"
-
-
-# Inspired by Red Blob Games
-hex_directions = [(1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1)]
-
-
-def hex_direction(direction: int) -> Tuple[int, int]:
-    return hex_directions[direction]
-
-
-def hex_add(a: Tuple[int, int], b: Tuple[int, int]) -> Tuple[int, int]:
-    return a[0] + b[0], a[1] + b[1]
-
-
-def hex_neighbour(hex: Tuple[int, int], direction: int) -> Tuple[int, int]:
-    return hex_add(hex, hex_direction(direction))
-
-
-def axial_to_cube(q: int, r: int) -> Tuple[int, int, int]:
-    s = -q - r
-    return (q, r, s)
-
-
-def cube_to_axial(q: int, r: int, s: int) -> Tuple[int, int]:
-    assert not (round(q + r + s) != 0), "q + r + s must be 0"
-    return (q, r)
-
-
-def double_to_axial(node: Tuple[int, int]) -> Tuple[int, int]:
-    u, v = node
-    x, y = ghg.double_to_cartesian(u, v, hex_radius)
-    return ghg.cartesian_to_axial(x, y, hex_radius)
-
-
 # TODO: should only add neighbours to vns if they are in the dataset, i.e. within the bounding box
 def vns(node: Tuple[int, int]) -> List[Tuple[int, int]]:
-    q, r = double_to_axial(node)
+    q, r = hex.double_to_axial(node, hex_radius)
     vns = []
     for i in range(6):
-        a, b = hex_neighbour((q, r), i)
-        u, v = ghg.axial_to_double(a, b)
-        print(u, v)
-        neighbour = int(u), int(v)
-        vns.append(str_id(neighbour))
+        a, b = hex.hex_neighbour((q, r), i)
+        u, v = hex.axial_to_double(a, b)
+        vns.append(hex.str_id((u, v)))
     return vns
 
 
@@ -235,7 +194,7 @@ def vns(node: Tuple[int, int]) -> List[Tuple[int, int]]:
 # ### Create Vicinity Node Set (VNS) for each seed point / hexagon
 
 # %%
-seed_points["vns"] = seed_points["id"].apply(lambda s: vns(numeric_id(s)))
+seed_points["vns"] = seed_points["id"].apply(lambda s: vns(hex.numeric_id(s)))
 
 
 # %% [markdown]
@@ -400,5 +359,5 @@ fig.suptitle("Generation 0", fontsize=16)
 plt.tight_layout()
 
 filename = "start_population"
-plt.savefig(f"{PATH}{filename}.png", dpi=300, bbox_inches="tight")
+# plt.savefig(f"{PATH}{filename}.png", dpi=300, bbox_inches="tight")
 plt.show()

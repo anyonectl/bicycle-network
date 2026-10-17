@@ -15,6 +15,12 @@ resources**
 # Created by https://www.toptal.com/developers/gitignore/api/macos,windows,linux,git,visualstudiocode,python,jupyternotebooks,latex
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos,windows,linux,git,visualstudiocode,python,jupyternotebooks,latex
 
+### Python ###
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
 ### Git ###
 # Created by git for backups. To disable backups in Git:
 # $ git config --global mergetool.keepBackup false
