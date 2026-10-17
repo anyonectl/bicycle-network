@@ -12,128 +12,93 @@
 #     name: python3
 # ---
 
+# %% [markdown]
+# ## Setup
+
+
 # %%
 # %load_ext autoreload
 # %autoreload 2
 
-# %% [markdown]
-# ## Imports
 
 # %%
-import geohexgrid as ghg
+from bicycle_network import hex, irsg, demand
 import numpy as np
-from shapely import Point, LineString
-import geopandas as gpd
-import pandas as pd
-from math import comb, ceil
+from math import ceil
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from typing import List, Tuple
 
 # %% [markdown]
-# ## Grid
+# ## Grid and seed points
 
 # %%
 hex_radius = 4
-grid = ghg.make_grid_from_bounds(0.0, 0.0, 100.0, 100.0, hex_radius)
+grid = hex.make_test_grid(hex_radius)
 grid["centroid"] = grid["geometry"].centroid
-grid.plot(figsize=(10, 10))
 
-# %%
-grid["centroid"].plot(figsize=(10, 10))
+fig, axes = plt.subplots(1, 2, figsize=(16, 8))
+grid.plot(ax=axes[0])
+axes[0].set_title("Hex grid")
+grid["centroid"].plot(ax=axes[1])
+axes[1].set_title("Centroids")
+plt.tight_layout()
+plt.show()
 
 
 # %% [markdown]
-# ## Demand matrix
+# ## Demand
 
 # %% [markdown]
 # ### Create all seed point pairs
 
 
 # %%
-def od_pairs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    seed_points = gdf["cell_id"].values.tolist()
-    geo: List[Point] = gdf["centroid"].tolist()
-    n = len(seed_points)
-    ids = []
-    origins = []
-    dests = []
-    lines = []
-    for i in range(n):
-        for j in range(i + 1, n):
-            ids.append((seed_points[i], seed_points[j]))
-            origins.append(seed_points[i])
-            dests.append(seed_points[j])
-            lines.append(LineString([geo[i], geo[j]]))
-    return gpd.GeoDataFrame({"pair": ids, "u": origins, "v": dests, "geometry": lines})
-
-
-# %%
-test_pairs = od_pairs(grid)
-print(f"no. of seed points: {grid.shape[0]}")
-print(f"no. of pairs is actually: {test_pairs.shape[0]}")
-print(f"no. of pairs should be: {comb(grid.shape[0], 2)}")
+test_pairs = demand.od_pairs(grid)
 test_pairs.head()
+# TODO: put these tests into a tests/test_demand.py file
+# print(f"no. of seed points: {grid.shape[0]}")
+# print(f"no. of pairs is actually: {test_pairs.shape[0]}")
+# print(f"no. of pairs should be: {comb(grid.shape[0], 2)}")
 
 
 # %% [markdown]
-# ### Generate random demand
-
-
-# %%
-def generate_uniform_demand(n: int) -> np.ndarray:
-    seed: int = 8920299146682435931
-    rng: np.random.Generator = np.random.default_rng(seed=seed)
-    return rng.uniform(low=0.0, high=1.0, size=n)
-
-
-def make_demand_weird(demand: np.ndarray) -> np.ndarray:
-    seed: int = 8920299146682435931
-    rng: np.random.Generator = np.random.default_rng(seed=seed)
-    n = len(demand)
-    indices = [x for x in range(n)]
-    doubles = rng.choice(a=indices, size=int(n / 4), replace=False)
-    halves = rng.choice(a=indices, size=int(n / 4), replace=False)
-    for i in doubles:
-        demand[i] = demand[i] * 2
-    for i in halves:
-        demand[i] = demand[i] / 1.5
-    return demand
-
-
-# Code from NumPy docs
-def plot_demand_distribution(demand: np.ndarray):
-    count, bins, _ = plt.hist(demand, 15, density=True)
-    plt.plot(bins, np.ones_like(bins), linewidth=2, color="r")
-    plt.show()
+# ### Generate random demand and create demand matrix
 
 
 # %%
 n_pairs = test_pairs.shape[0]  # number of seed point pairs
-test_demand = make_demand_weird(generate_uniform_demand(n_pairs))
-plot_demand_distribution(test_demand)
-
-# %% [markdown]
-# ### Create demand matrix
-
-# %%
-demand_matrix = pd.concat([test_pairs, pd.Series(test_demand)], axis=1)
-demand_matrix.columns = ["pair", "u", "v", "geometry", "demand"]
-total_demand = float(demand_matrix["demand"].sum())
-demand_matrix["demand_share"] = demand_matrix["demand"] * 100 / total_demand
+test_demand = demand.generate_weird_demand(n_pairs)
+demand_matrix = demand.create_matrix(test_pairs, test_demand)
 print(demand_matrix.info())
 demand_matrix.head()
 
+
 # %%
-# With Anastassia's plot:
-fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-grid.boundary.plot(ax=ax, color="black", zorder=0, lw=0.5)
-demand_matrix.plot(ax=ax, lw=demand_matrix.demand_share * 20, alpha=0.2)
-ax.set_axis_off()
-ax.set_title("Seed point pairs")
+fig, (ax_hist, ax_map) = plt.subplots(
+    1,
+    2,
+    figsize=(16, 8),
+)
+
+count, bins, _ = ax_hist.hist(test_demand, 15, density=True)
+ax_hist.plot(bins, np.ones_like(bins), linewidth=2, color="r")
+ax_hist.set_title("Demand distribution")
+
+grid.boundary.plot(ax=ax_map, color="black", zorder=0, lw=0.5)
+demand_matrix.plot(
+    ax=ax_map,
+    lw=demand_matrix.demand_share * 20,
+    alpha=0.2,
+)
+ax_map.set_axis_off()
+ax_map.set_title("Pairwise demand")
+
+plt.tight_layout()
+plt.show()
+
 
 # %% [markdown]
-# ## Seed point GDF
+# ### Aggregate demand per seed point
 
 # %%
 seed_points = grid
@@ -154,7 +119,7 @@ ax.set_axis_off()
 ax.set_title("Total demand per hexagon")
 
 # %% [markdown]
-# ## Initial Route Set Generation
+# ## Initial Route Set Generation (IRSG)
 
 # %% [markdown]
 # ### Variables
@@ -171,192 +136,12 @@ PATH = ROOT + "results/plots/"
 
 
 # %% [markdown]
-# ### Helper functions
-#
-# TODO: Use spatial indexing to find neighbours instead? Sth with trees?
-
+# ### Create Vicinity Node Set (VNS) for each seed point
 
 # %%
-def numeric_id(s: str) -> Tuple[int, int]:
-    x, y = s.split(",")
-    return int(x), int(y)
-
-
-def str_id(t: Tuple[int, int]) -> str:
-    return f"{t[0]},{t[1]}"
-
-
-# Inspired by Red Blob Games
-hex_directions = [(1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1)]
-
-
-def hex_direction(direction: int) -> Tuple[int, int]:
-    return hex_directions[direction]
-
-
-def hex_add(a: Tuple[int, int], b: Tuple[int, int]) -> Tuple[int, int]:
-    return a[0] + b[0], a[1] + b[1]
-
-
-def hex_neighbour(hex: Tuple[int, int], direction: int) -> Tuple[int, int]:
-    return hex_add(hex, hex_direction(direction))
-
-
-def axial_to_cube(q: int, r: int) -> Tuple[int, int, int]:
-    s = -q - r
-    return (q, r, s)
-
-
-def cube_to_axial(q: int, r: int, s: int) -> Tuple[int, int]:
-    assert not (round(q + r + s) != 0), "q + r + s must be 0"
-    return (q, r)
-
-
-def double_to_axial(node: Tuple[int, int]) -> Tuple[int, int]:
-    u, v = node
-    x, y = ghg.double_to_cartesian(u, v, hex_radius)
-    return ghg.cartesian_to_axial(x, y, hex_radius)
-
-
-# TODO: should only add neighbours to vns if they are in the dataset, i.e. within the bounding box
-def vns(node: Tuple[int, int]) -> List[Tuple[int, int]]:
-    q, r = double_to_axial(node)
-    vns = []
-    for i in range(6):
-        a, b = hex_neighbour((q, r), i)
-        u, v = ghg.axial_to_double(a, b)
-        print(u, v)
-        neighbour = int(u), int(v)
-        vns.append(str_id(neighbour))
-    return vns
-
-
-# %% [markdown]
-# ### Create Vicinity Node Set (VNS) for each seed point / hexagon
-
-# %%
-seed_points["vns"] = seed_points["id"].apply(lambda s: vns(numeric_id(s)))
-
-
-# %% [markdown]
-# ### Functions to create single network
-
-
-# %%
-def normalise_probabilities(df):
-    p = df.to_numpy(dtype=np.float64)
-    return p / np.sum(p, dtype=np.float64)
-
-
-# TODO: bias terms for each node in the VNS?
-# TODO: needs some way to stop if no node in VNS is possible. boolean in irs dict?
-def next_node(p: int, previous_node: str, irs: dict):
-    # Calculate probabilities for each node in the VNS
-    filter = seed_points.loc[
-        seed_points["id"] == previous_node, ["vns"]
-    ].values.tolist()[0][0]
-    vns = seed_points.loc[seed_points["id"].isin(filter)].sort_values(
-        by=["total_demand"], ascending=False
-    )
-    activity_sum = float(vns["total_demand"].sum())
-    vns["probability"] = vns["total_demand"] / activity_sum
-
-    # Select next node and add to dict
-    tries = vns.shape[0]
-    next_node = ""
-    for _ in range(tries):
-        next_node = RNG.choice(
-            a=vns["id"], p=normalise_probabilities(vns["probability"])
-        )
-        if next_node not in irs[p]["nodes"]:
-            irs[p]["nodes"].append(next_node)
-            break
-        else:
-            vns = vns[(vns["id"] != next_node)]
-    finished = vns.shape[0] == 0  # stop if no node in VNS is possible
-    return (next_node, irs, finished)
-
-
-def generate_route(k: int):
-    """
-    Form Initial Node Set (INS) from the first k nodes. k must be larger than MAX_PATHS
-    """
-    irs = {}
-    ins = (
-        seed_points.copy()
-        .sort_values("total_demand", ascending=False)
-        .head(k)
-        .reset_index(drop=True)
-    )
-
-    # Select first nodes
-    for i in range(MAX_PATHS):
-        # Calculate probabilities of selection a node j as first node
-        activity_sum = float(ins["total_demand"].sum())
-        ins["probability"] = ins["total_demand"] / activity_sum
-
-        # Select first node
-        first_node = RNG.choice(
-            a=ins["id"], p=normalise_probabilities(ins["probability"])
-        )
-
-        # Add to dict
-        irs[i] = {"nodes": [first_node]}
-
-        # Remove selected node from INS
-        ins = ins[(ins["id"] != first_node)]
-
-        # Build paths
-        previous_node = first_node
-        for _ in range(MAX_NODES - 1):  # -1 because we already added first_node
-            tmp_next, tmp_irs, finished = next_node(i, previous_node, irs)
-            if finished:  # stop if no node in VNS is possible
-                break
-            previous_node = tmp_next
-            irs = tmp_irs
-
-    return irs
-
-
-def create_gdf(irs: dict) -> gpd.GeoDataFrame:
-    # Create dict for network
-    d = {
-        "path_id": [path_id for path_id in irs],
-        "start_id": [path.get("nodes")[:][0] for _, path in irs.items()],
-        "end_id": [path.get("nodes")[:][-1] for _, path in irs.items()],
-        "path": [path.get("nodes") for _, path in irs.items()],
-        # 'demand_covered': [],
-        # 'geometry': []
-    }
-
-    # Create geometries
-    id_to_centroid = seed_points.set_index("id")["centroid"].to_dict()
-    geom = [
-        LineString([id_to_centroid[point_id] for point_id in path])
-        for path in d["path"]
-    ]
-
-    # Create dataframe
-    network_gdf = gpd.GeoDataFrame(d, geometry=geom, crs=None)
-
-    return network_gdf
-
-
-def generate_population(n: int, k: int) -> gpd.GeoDataFrame:
-    """
-    Create population of n networks (route sets).
-    Each network will contain the starting nodes selected from the k nodes with highest demand.
-    """
-    pop_list = []
-    for i in range(n):
-        gdf = create_gdf(generate_route(k))
-        gdf["network_id"] = i
-        # save_plot(gdf)
-        pop_list.append(gdf)
-
-    pop_gdf = pd.concat(pop_list)
-    # save as geojson here
-    return pop_gdf
+seed_points["vns"] = seed_points["id"].apply(
+    lambda s: hex.vns(hex.numeric_id(s), hex_radius)
+)
 
 
 # %% [markdown]
@@ -366,10 +151,10 @@ def generate_population(n: int, k: int) -> gpd.GeoDataFrame:
 n_start_nodes = int(
     len(seed_points) / 2
 )  # how many start nodes do we initialise our routes with
-start_pop = generate_population(N_POP, n_start_nodes)
+start_pop = irsg.generate_population(
+    N_POP, n_start_nodes, MAX_PATHS, MAX_NODES, seed_points, RNG
+)
 
-# %% [markdown]
-# ### Plot start population
 
 # %%
 n_cols = 4
@@ -400,5 +185,11 @@ fig.suptitle("Generation 0", fontsize=16)
 plt.tight_layout()
 
 filename = "start_population"
-plt.savefig(f"{PATH}{filename}.png", dpi=300, bbox_inches="tight")
+# plt.savefig(f"{PATH}{filename}.png", dpi=300, bbox_inches="tight")
 plt.show()
+
+# %% [markdown]
+# ## Genetic Algorithm
+#
+# TODO
+#
