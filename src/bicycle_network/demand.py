@@ -5,12 +5,14 @@ import numpy as np
 import pandas as pd
 from shapely import LineString, Point
 
+
 def create_matrix(pairs: gdf, demand: np.ndarray):
     demand_matrix = pd.concat([pairs, pd.Series(demand)], axis=1)
     demand_matrix.columns = ["pair", "u", "v", "geometry", "demand"]
     total_demand = float(demand_matrix["demand"].sum())
     demand_matrix["demand_share"] = demand_matrix["demand"] * 100 / total_demand
     return demand_matrix
+
 
 def od_pairs(geo_df: gdf) -> gdf:
     seed_points = geo_df["cell_id"].values.tolist()
@@ -28,13 +30,16 @@ def od_pairs(geo_df: gdf) -> gdf:
             lines.append(LineString([geo[i], geo[j]]))
     return gdf({"pair": ids, "u": origins, "v": dests, "geometry": lines})
 
+
 def generate_uniform_demand(n: int) -> np.ndarray:
     seed: int = 8920299146682435931
     rng: np.random.Generator = np.random.default_rng(seed=seed)
     return rng.uniform(low=0.0, high=1.0, size=n)
 
+
 def generate_weird_demand(n: int) -> np.ndarray:
-    return (make_demand_weird(generate_uniform_demand(n)))
+    return make_demand_weird(generate_uniform_demand(n))
+
 
 def make_demand_weird(demand: np.ndarray) -> np.ndarray:
     seed: int = 8920299146682435931
@@ -49,12 +54,14 @@ def make_demand_weird(demand: np.ndarray) -> np.ndarray:
         demand[i] = demand[i] / 1.5
     return demand
 
+
 # Code from NumPy docs
 def plot_demand_distribution(demand: np.ndarray) -> None:
     count, bins, _ = plt.hist(demand, 15, density=True)
     plt.plot(bins, np.ones_like(bins), linewidth=2, color="r")
     plt.show()
     return None
+
 
 # Code from Anastassia
 def plot_pairwise_demand(demand_matrix: gdf, grid: gdf) -> None:

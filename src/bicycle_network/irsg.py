@@ -3,9 +3,16 @@ import geopandas as gpd
 import pandas as pd
 from shapely import LineString
 
+
 # TODO: bias terms for each node in the VNS?
 # TODO: needs some way to stop if no node in VNS is possible. boolean in irs dict?
-def next_node(path_id: int, previous_node: str, irs: dict, seed_points: gpd.GeoDataFrame, rng: np.random.Generator):
+def next_node(
+    path_id: int,
+    previous_node: str,
+    irs: dict,
+    seed_points: gpd.GeoDataFrame,
+    rng: np.random.Generator,
+):
     # Calculate probabilities for each node in the VNS
     filter = seed_points.loc[
         seed_points["id"] == previous_node, ["vns"]
@@ -32,7 +39,13 @@ def next_node(path_id: int, previous_node: str, irs: dict, seed_points: gpd.GeoD
     return (next_node, irs, finished)
 
 
-def generate_route(k: int, max_paths: int, max_nodes: int, seed_points: gpd.GeoDataFrame, rng: np.random.Generator):
+def generate_route(
+    k: int,
+    max_paths: int,
+    max_nodes: int,
+    seed_points: gpd.GeoDataFrame,
+    rng: np.random.Generator,
+):
     """
     Form Initial Node Set (INS) from the first k nodes. k must be larger than max_paths
     """
@@ -64,7 +77,9 @@ def generate_route(k: int, max_paths: int, max_nodes: int, seed_points: gpd.GeoD
         # Build paths
         previous_node = first_node
         for _ in range(max_nodes - 1):  # -1 because we already added first_node
-            tmp_next, tmp_irs, finished = next_node(i, previous_node, irs, seed_points, rng)
+            tmp_next, tmp_irs, finished = next_node(
+                i, previous_node, irs, seed_points, rng
+            )
             if finished:  # stop if no node in VNS is possible
                 break
             previous_node = tmp_next
@@ -72,14 +87,24 @@ def generate_route(k: int, max_paths: int, max_nodes: int, seed_points: gpd.GeoD
 
     return irs
 
-def generate_population(n: int, k: int, max_paths: int, max_nodes: int, seed_points: gpd.GeoDataFrame, rng: np.random.Generator) -> gpd.GeoDataFrame:
+
+def generate_population(
+    n: int,
+    k: int,
+    max_paths: int,
+    max_nodes: int,
+    seed_points: gpd.GeoDataFrame,
+    rng: np.random.Generator,
+) -> gpd.GeoDataFrame:
     """
     Create population of n networks (route sets).
     Each network will contain the starting nodes selected from the k nodes with highest demand.
     """
     pop_list = []
     for i in range(n):
-        gdf = create_gdf(generate_route(k, max_paths, max_nodes, seed_points, rng), seed_points)
+        gdf = create_gdf(
+            generate_route(k, max_paths, max_nodes, seed_points, rng), seed_points
+        )
         gdf["network_id"] = i
         # TODO: save_plot(gdf)
         pop_list.append(gdf)
@@ -88,9 +113,11 @@ def generate_population(n: int, k: int, max_paths: int, max_nodes: int, seed_poi
     # TODO: save as geojson here?
     return pop_gdf
 
+
 def normalise_probabilities(df: pd.Series) -> np.ndarray:
     p = df.to_numpy(dtype=np.float64)
     return p / np.sum(p, dtype=np.float64)
+
 
 def create_gdf(irs: dict, seed_points: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     # Create dict for network

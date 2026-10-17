@@ -12,39 +12,41 @@
 #     name: python3
 # ---
 
+# %% [markdown]
+# ## Setup
+
+
 # %%
 # %load_ext autoreload
 # %autoreload 2
 
-# %% [markdown]
-# ## Imports
 
 # %%
 from bicycle_network import hex, irsg, demand
 import numpy as np
-from shapely import Point, LineString
-import geopandas as gpd
-import pandas as pd
-from math import comb, ceil
+from math import ceil
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from typing import List, Tuple
 
 # %% [markdown]
-# ## Grid
+# ## Grid and seed points
 
 # %%
 hex_radius = 4
 grid = hex.make_test_grid(hex_radius)
 grid["centroid"] = grid["geometry"].centroid
-grid.plot(figsize=(10, 10))
 
-# %%
-grid["centroid"].plot(figsize=(10, 10))
+fig, axes = plt.subplots(1, 2, figsize=(16, 8))
+grid.plot(ax=axes[0])
+axes[0].set_title("Hex grid")
+grid["centroid"].plot(ax=axes[1])
+axes[1].set_title("Centroids")
+plt.tight_layout()
+plt.show()
 
 
 # %% [markdown]
-# ## Demand matrix
+# ## Demand
 
 # %% [markdown]
 # ### Create all seed point pairs
@@ -52,39 +54,51 @@ grid["centroid"].plot(figsize=(10, 10))
 
 # %%
 test_pairs = demand.od_pairs(grid)
-print(f"no. of seed points: {grid.shape[0]}")
-print(f"no. of pairs is actually: {test_pairs.shape[0]}")
-print(f"no. of pairs should be: {comb(grid.shape[0], 2)}")
 test_pairs.head()
+# TODO: put these tests into a tests/test_demand.py file
+# print(f"no. of seed points: {grid.shape[0]}")
+# print(f"no. of pairs is actually: {test_pairs.shape[0]}")
+# print(f"no. of pairs should be: {comb(grid.shape[0], 2)}")
 
 
 # %% [markdown]
-# ### Generate random demand
+# ### Generate random demand and create demand matrix
 
 
 # %%
 n_pairs = test_pairs.shape[0]  # number of seed point pairs
 test_demand = demand.generate_weird_demand(n_pairs)
-demand.plot_demand_distribution(test_demand)
-
-# %% [markdown]
-# ### Create demand matrix
-
-# %%
 demand_matrix = demand.create_matrix(test_pairs, test_demand)
 print(demand_matrix.info())
 demand_matrix.head()
 
+
 # %%
-# With Anastassia's plot:
-fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-grid.boundary.plot(ax=ax, color="black", zorder=0, lw=0.5)
-demand_matrix.plot(ax=ax, lw=demand_matrix.demand_share * 20, alpha=0.2)
-ax.set_axis_off()
-ax.set_title("Seed point pairs")
+fig, (ax_hist, ax_map) = plt.subplots(
+    1,
+    2,
+    figsize=(16, 8),
+)
+
+count, bins, _ = ax_hist.hist(test_demand, 15, density=True)
+ax_hist.plot(bins, np.ones_like(bins), linewidth=2, color="r")
+ax_hist.set_title("Demand distribution")
+
+grid.boundary.plot(ax=ax_map, color="black", zorder=0, lw=0.5)
+demand_matrix.plot(
+    ax=ax_map,
+    lw=demand_matrix.demand_share * 20,
+    alpha=0.2,
+)
+ax_map.set_axis_off()
+ax_map.set_title("Pairwise demand")
+
+plt.tight_layout()
+plt.show()
+
 
 # %% [markdown]
-# ## Seed point GDF
+# ### Aggregate demand per seed point
 
 # %%
 seed_points = grid
@@ -105,7 +119,7 @@ ax.set_axis_off()
 ax.set_title("Total demand per hexagon")
 
 # %% [markdown]
-# ## Initial Route Set Generation
+# ## Initial Route Set Generation (IRSG)
 
 # %% [markdown]
 # ### Variables
@@ -122,45 +136,13 @@ PATH = ROOT + "results/plots/"
 
 
 # %% [markdown]
-# ### Helper functions
-#
-# See src/bicycle_network/hex.py
-#
-# TODO: Use spatial indexing to find neighbours instead? Sth with trees?
-
+# ### Create Vicinity Node Set (VNS) for each seed point
 
 # %%
-# TODO: should only add neighbours to vns if they are in the dataset, i.e. within the bounding box
-def vns(node: Tuple[int, int]) -> List[Tuple[int, int]]:
-    q, r = hex.double_to_axial(node, hex_radius)
-    vns = []
-    for i in range(6):
-        a, b = hex.hex_neighbour((q, r), i)
-        u, v = hex.axial_to_double(a, b)
-        vns.append(hex.str_id((u, v)))
-    return vns
-
-
-# %% [markdown]
-# ### Create Vicinity Node Set (VNS) for each seed point / hexagon
-
-# %%
-seed_points["vns"] = seed_points["id"].apply(lambda s: hex.vns(hex.numeric_id(s), hex_radius))
-
-
-# %% [markdown]
-# ### Functions to create single network
-# See src/bicycle_network/irsg.py
-
-
-# %%
-initial_node_set = (
-    seed_points.copy()
-    .sort_values("total_demand", ascending=False)
-    .head(10)
-    .reset_index(drop=True)
+seed_points["vns"] = seed_points["id"].apply(
+    lambda s: hex.vns(hex.numeric_id(s), hex_radius)
 )
-type(initial_node_set["total_demand"])
+
 
 # %% [markdown]
 # ### Run IRSG
@@ -169,10 +151,10 @@ type(initial_node_set["total_demand"])
 n_start_nodes = int(
     len(seed_points) / 2
 )  # how many start nodes do we initialise our routes with
-start_pop = irsg.generate_population(N_POP, n_start_nodes, MAX_PATHS, MAX_NODES, seed_points, RNG)
+start_pop = irsg.generate_population(
+    N_POP, n_start_nodes, MAX_PATHS, MAX_NODES, seed_points, RNG
+)
 
-# %% [markdown]
-# ### Plot start population
 
 # %%
 n_cols = 4
@@ -205,3 +187,9 @@ plt.tight_layout()
 filename = "start_population"
 # plt.savefig(f"{PATH}{filename}.png", dpi=300, bbox_inches="tight")
 plt.show()
+
+# %% [markdown]
+# ## Genetic Algorithm
+#
+# TODO
+#

@@ -1,19 +1,26 @@
+# TODO: Use spatial indexing to find neighbours instead? Sth with trees?
+
 from typing import List, Tuple
 import geohexgrid as ghg
+
 
 def numeric_id(s: str) -> Tuple[int, int]:
     x, y = s.split(",")
     return int(x), int(y)
 
+
 def str_id(t: Tuple[int, int]) -> str:
     return f"{t[0]},{t[1]}"
+
 
 def axial_to_double(a: float, b: float) -> Tuple[int, int]:
     u, v = ghg.axial_to_double(a, b)
     return int(u), int(v)
 
+
 def make_test_grid(hex_radius: int):
     return ghg.make_grid_from_bounds(0.0, 0.0, 100.0, 100.0, hex_radius)
+
 
 # TODO: should only add neighbours to vns if they are in the dataset, i.e. within the bounding box
 def vns(node: Tuple[int, int], hex_radius: int) -> List[Tuple[int, int]]:
@@ -28,6 +35,7 @@ def vns(node: Tuple[int, int], hex_radius: int) -> List[Tuple[int, int]]:
 
 # Inspired by Red Blob Games:
 hex_directions = [(1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1)]
+
 
 def hex_direction(direction: int) -> Tuple[int, int]:
     return hex_directions[direction]
