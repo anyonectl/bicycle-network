@@ -20,7 +20,7 @@
 # ## Imports
 
 # %%
-from bicycle_network import hex, irsg
+from bicycle_network import hex, irsg, demand
 import numpy as np
 from shapely import Point, LineString
 import geopandas as gpd
@@ -51,25 +51,7 @@ grid["centroid"].plot(figsize=(10, 10))
 
 
 # %%
-def od_pairs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    seed_points = gdf["cell_id"].values.tolist()
-    geo: List[Point] = gdf["centroid"].tolist()
-    n = len(seed_points)
-    ids = []
-    origins = []
-    dests = []
-    lines = []
-    for i in range(n):
-        for j in range(i + 1, n):
-            ids.append((seed_points[i], seed_points[j]))
-            origins.append(seed_points[i])
-            dests.append(seed_points[j])
-            lines.append(LineString([geo[i], geo[j]]))
-    return gpd.GeoDataFrame({"pair": ids, "u": origins, "v": dests, "geometry": lines})
-
-
-# %%
-test_pairs = od_pairs(grid)
+test_pairs = demand.od_pairs(grid)
 print(f"no. of seed points: {grid.shape[0]}")
 print(f"no. of pairs is actually: {test_pairs.shape[0]}")
 print(f"no. of pairs should be: {comb(grid.shape[0], 2)}")
@@ -81,46 +63,15 @@ test_pairs.head()
 
 
 # %%
-def generate_uniform_demand(n: int) -> np.ndarray:
-    seed: int = 8920299146682435931
-    rng: np.random.Generator = np.random.default_rng(seed=seed)
-    return rng.uniform(low=0.0, high=1.0, size=n)
-
-
-def make_demand_weird(demand: np.ndarray) -> np.ndarray:
-    seed: int = 8920299146682435931
-    rng: np.random.Generator = np.random.default_rng(seed=seed)
-    n = len(demand)
-    indices = [x for x in range(n)]
-    doubles = rng.choice(a=indices, size=int(n / 4), replace=False)
-    halves = rng.choice(a=indices, size=int(n / 4), replace=False)
-    for i in doubles:
-        demand[i] = demand[i] * 2
-    for i in halves:
-        demand[i] = demand[i] / 1.5
-    return demand
-
-
-# Code from NumPy docs
-def plot_demand_distribution(demand: np.ndarray):
-    count, bins, _ = plt.hist(demand, 15, density=True)
-    plt.plot(bins, np.ones_like(bins), linewidth=2, color="r")
-    plt.show()
-
-
-# %%
 n_pairs = test_pairs.shape[0]  # number of seed point pairs
-test_demand = make_demand_weird(generate_uniform_demand(n_pairs))
-plot_demand_distribution(test_demand)
+test_demand = demand.generate_weird_demand(n_pairs)
+demand.plot_demand_distribution(test_demand)
 
 # %% [markdown]
 # ### Create demand matrix
 
 # %%
-demand_matrix = pd.concat([test_pairs, pd.Series(test_demand)], axis=1)
-demand_matrix.columns = ["pair", "u", "v", "geometry", "demand"]
-total_demand = float(demand_matrix["demand"].sum())
-demand_matrix["demand_share"] = demand_matrix["demand"] * 100 / total_demand
+demand_matrix = demand.create_matrix(test_pairs, test_demand)
 print(demand_matrix.info())
 demand_matrix.head()
 
@@ -194,7 +145,7 @@ def vns(node: Tuple[int, int]) -> List[Tuple[int, int]]:
 # ### Create Vicinity Node Set (VNS) for each seed point / hexagon
 
 # %%
-seed_points["vns"] = seed_points["id"].apply(lambda s: vns(hex.numeric_id(s)))
+seed_points["vns"] = seed_points["id"].apply(lambda s: hex.vns(hex.numeric_id(s), hex_radius))
 
 
 # %% [markdown]
@@ -203,13 +154,13 @@ seed_points["vns"] = seed_points["id"].apply(lambda s: vns(hex.numeric_id(s)))
 
 
 # %%
-ins = (
+initial_node_set = (
     seed_points.copy()
     .sort_values("total_demand", ascending=False)
     .head(10)
     .reset_index(drop=True)
 )
-type(ins["total_demand"])
+type(initial_node_set["total_demand"])
 
 # %% [markdown]
 # ### Run IRSG

@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import List, Tuple
 import geohexgrid as ghg
 
 def numeric_id(s: str) -> Tuple[int, int]:
@@ -14,6 +14,16 @@ def axial_to_double(a: float, b: float) -> Tuple[int, int]:
 
 def make_test_grid(hex_radius: int):
     return ghg.make_grid_from_bounds(0.0, 0.0, 100.0, 100.0, hex_radius)
+
+# TODO: should only add neighbours to vns if they are in the dataset, i.e. within the bounding box
+def vns(node: Tuple[int, int], hex_radius: int) -> List[Tuple[int, int]]:
+    q, r = double_to_axial(node, hex_radius)
+    vns = []
+    for i in range(6):
+        a, b = hex_neighbour((q, r), i)
+        u, v = axial_to_double(a, b)
+        vns.append(str_id((u, v)))
+    return vns
 
 
 # Inspired by Red Blob Games:
