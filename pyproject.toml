@@ -30,6 +30,7 @@ pyproj = ">=3.8.0,<4"
 geohexgrid = ">=3.0.3,<4"
 pip = ">=26.2.1,<27"
 jupytext = ">=1.19.6,<2"
+pytest = ">=9.1.1,<10"
 
 [tool.pyright]
 include = ["src", "scripts"]
