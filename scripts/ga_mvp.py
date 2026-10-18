@@ -7,7 +7,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.6
 #   kernelspec:
-#     display_name: bicycle-network:default (3.14.8)
+#     display_name: Python 3
 #     language: python
 #     name: python3
 # ---
@@ -37,13 +37,29 @@ grid = hex.make_test_grid(hex_radius)
 grid["centroid"] = grid["geometry"].centroid
 
 fig, axes = plt.subplots(1, 2, figsize=(16, 8))
-grid.plot(ax=axes[0])
+grid.boundary.plot(ax=axes[0])
 axes[0].set_title("Hex grid")
 grid["centroid"].plot(ax=axes[1])
 axes[1].set_title("Centroids")
 plt.tight_layout()
 plt.show()
 
+
+# %%
+ax = grid.boundary.plot(figsize=(10, 10))
+for _, row in grid.iterrows():
+    centroid = row["centroid"]
+    ax.annotate(
+        row["cell_id"],
+        (centroid.x, centroid.y),
+        ha="center",
+        va="center",
+        fontsize=8,
+        color="grey",
+    )
+ax.set_axis_off()
+ax.set_title("Grid with IDs")
+plt.show()
 
 # %% [markdown]
 # ## Demand
@@ -139,10 +155,50 @@ PATH = ROOT + "results/plots/"
 # ### Create Vicinity Node Set (VNS) for each seed point
 
 # %%
+matches = seed_points[["id", "geometry"]].sjoin(
+    seed_points[["id", "geometry"]],
+    how="left",
+    predicate="touches",
+    lsuffix="left",
+    rsuffix="right",
+)
+
+seed_points = seed_points.copy()
+seed_points["neighbours"] = matches.groupby(level=0)["id_right"].agg(
+    lambda ids: ids.dropna().tolist()
+)
+
+# %%
+seed_points.head()
+
+# %%
 seed_points["vns"] = seed_points["id"].apply(
     lambda s: hex.vns(hex.numeric_id(s), hex_radius)
 )
+seed_points.head()
 
+
+# %%
+fig, axes = plt.subplots(1,2, figsize = (16, 8))
+
+seed_points.boundary.plot(ax=axes[0], color = "grey")
+seed_points["centroid"].plot(ax=axes[0], color = "black", markersize=1)
+for i in ['0,0', '17,29', '4,24', '13,5']:
+    seed_points[seed_points['id']==i].plot(ax=axes[0], color = "orange", alpha = 0.5)
+    seed_points[seed_points['id'].isin(seed_points.loc[seed_points['id']==i, "neighbours"].values[0])].plot(ax=axes[0], color = "blue", alpha = 0.5)
+axes[0].set_axis_off()
+axes[0].set_title("Spatial indexing")
+
+seed_points.boundary.plot(ax=axes[1], color = "grey")
+seed_points["centroid"].plot(ax=axes[1], color = "black", markersize=1)
+for i in ['0,0', '17,29', '4,24', '13,5']:
+    seed_points[seed_points['id']==i].plot(ax=axes[1], color = "orange", alpha = 0.5)
+    seed_points[seed_points['id'].isin(seed_points.loc[seed_points['id']==i, "vns"].values[0])].plot(ax=axes[1], color = "blue", alpha = 0.5)
+axes[1].set_axis_off()
+axes[1].set_title("Hex method")
+
+plt.tight_layout()
+plt.show()
 
 # %% [markdown]
 # ### Run IRSG
