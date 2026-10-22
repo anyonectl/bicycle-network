@@ -19,7 +19,7 @@ def axial_to_double(a: float, b: float) -> Tuple[int, int]:
 
 
 def make_test_grid(hex_radius: int):
-    return ghg.make_grid_from_bounds(0.0, 0.0, 100.0, 100.0, hex_radius)
+    return ghg.make_grid_from_bounds(-50.0, -50.0, 50.0, 50.0, hex_radius)
 
 
 # TODO: should only add neighbours to vns if they are in the dataset, i.e. within the bounding box

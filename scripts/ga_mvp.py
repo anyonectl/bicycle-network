@@ -185,7 +185,7 @@ seed_points.head()
 fig, ax = plt.subplots(1, 1, figsize=(8, 8))
 seed_points.boundary.plot(ax=ax, color="grey")
 # seed_points["centroid"].plot(ax=ax, color="black", markersize=1)
-selected_points = ["0,0", "0,14", "12,16", "8,28", "17,1", "7,7"]
+selected_points = ["0,0", "-8,-16", "8,14", "4,-16", "-8,6"]
 for i in selected_points:
     seed_points[seed_points["id"] == i].plot(ax=ax, color="orange", alpha=0.5)
     neighbour_dict = seed_points.loc[seed_points["id"] == i, "neighbours"].values[0]
