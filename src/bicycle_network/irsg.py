@@ -15,7 +15,7 @@ def next_node(
 ):
     # Calculate probabilities for each node in the VNS
     filter = seed_points.loc[
-        seed_points["id"] == previous_node, ["vns"]
+        seed_points["id"] == previous_node, ["neighbours"]
     ].values.tolist()[0][0]
     vns = seed_points.loc[seed_points["id"].isin(filter)].sort_values(
         by=["total_demand"], ascending=False
