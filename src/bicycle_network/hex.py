@@ -2,6 +2,7 @@
 
 from typing import Dict, List, Tuple
 import geohexgrid as ghg
+from shapely import Point, LineString
 
 
 def numeric_id(s: str) -> Tuple[int, int]:
@@ -31,6 +32,28 @@ def vns(node: Tuple[int, int], hex_radius: int) -> List[Tuple[int, int]]:
         u, v = axial_to_double(a, b)
         vns.append(str_id((u, v)))
     return vns
+
+
+def get_linestring(origin: Point, destination: Point) -> LineString:
+    return LineString([origin, destination])
+
+
+def get_angle_from_lines(previous: LineString, current: LineString) -> float:
+    return 0.0
+
+
+# We can view two edges as a vector/array with three points: previous, current, next - where next is the one we are testing
+def get_angle(previous: Point, current: Point, next: Point) -> float:
+    # use numpy to calculate angle
+    return 0.0
+
+
+def direction_bias(angle: float) -> float:
+    if angle > 170.0:
+        return 1.0
+    if angle < 90.0:
+        return 0.75
+    return 0.9
 
 
 def get_bearing(origin: str, destination: str) -> str:
