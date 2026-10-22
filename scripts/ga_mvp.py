@@ -46,7 +46,7 @@ plt.show()
 
 
 # %%
-ax = grid.boundary.plot(figsize=(10,10))
+ax = grid.boundary.plot(figsize=(10, 10))
 for _, row in grid.iterrows():
     centroid = row["centroid"]
     ax.annotate(
@@ -163,6 +163,7 @@ matches = seed_points[["id", "geometry"]].sjoin(
     rsuffix="right",
 )
 
+# %%
 seed_points = seed_points.copy()
 seed_points["neighbours"] = matches.groupby(level=0)["id_right"].agg(
     lambda ids: ids.dropna().tolist()
@@ -172,16 +173,46 @@ seed_points["neighbours"] = matches.groupby(level=0)["id_right"].agg(
 seed_points.head()
 
 # %%
-fig, ax = plt.subplots(1, 1)
+seed_points = seed_points.copy()
+seed_points["neighbours"] = seed_points.apply(
+    lambda row: hex.vns_list_to_bearing_dict(row["id"], row["neighbours"]), axis=1
+)
+
+# %%
+seed_points.head()
+
+# %%
+fig, ax = plt.subplots(1, 1, figsize=(8, 8))
 seed_points.boundary.plot(ax=ax, color="grey")
-seed_points["centroid"].plot(ax=ax, color="black", markersize=1)
-for i in ["0,0", "0,14", "12,16", "8,28", "17,1", "7,7"]:
+# seed_points["centroid"].plot(ax=ax, color="black", markersize=1)
+selected_points = ["0,0", "0,14", "12,16", "8,28", "17,1", "7,7"]
+for i in selected_points:
     seed_points[seed_points["id"] == i].plot(ax=ax, color="orange", alpha=0.5)
-    seed_points[
-        seed_points["id"].isin(
-            seed_points.loc[seed_points["id"] == i, "neighbours"].values[0]  # type: ignore
+    neighbour_dict = seed_points.loc[seed_points["id"] == i, "neighbours"].values[0]
+    neighbour_df = seed_points[seed_points["id"].isin(neighbour_dict.values())]  # type: ignore
+    neighbour_df.plot(ax=ax, color="blue", alpha=0.5)
+    reverse_neighbour_dict = dict((v, k) for k, v in neighbour_dict.items())  # type: ignore
+    for _, row in neighbour_df.iterrows():
+        centroid = row["centroid"]
+        neighbour_id = row["id"]
+        ax.annotate(
+            reverse_neighbour_dict[neighbour_id],
+            (centroid.x, centroid.y),
+            ha="center",
+            va="center",
+            fontsize=8,
+            color="black",
         )
-    ].plot(ax=ax, color="blue", alpha=0.5)
+for _, row in seed_points[seed_points["id"].isin(selected_points)].iterrows():
+    centroid = row["centroid"]
+    ax.annotate(
+        row["id"],
+        (centroid.x, centroid.y),
+        ha="center",
+        va="center",
+        fontsize=8,
+        color="black",
+    )
 ax.set_axis_off()
 ax.set_title("Vicinity Node Set (VNS)")
 plt.tight_layout()
