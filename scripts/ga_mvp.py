@@ -46,7 +46,7 @@ plt.show()
 
 
 # %%
-ax = grid.boundary.plot(figsize=(10, 10))
+ax = grid.boundary.plot(figsize=(10,10))
 for _, row in grid.iterrows():
     centroid = row["centroid"]
     ax.annotate(
@@ -172,31 +172,18 @@ seed_points["neighbours"] = matches.groupby(level=0)["id_right"].agg(
 seed_points.head()
 
 # %%
-seed_points["vns"] = seed_points["id"].apply(
-    lambda s: hex.vns(hex.numeric_id(s), hex_radius)
-)
-seed_points.head()
-
-
-# %%
-fig, axes = plt.subplots(1,2, figsize = (16, 8))
-
-seed_points.boundary.plot(ax=axes[0], color = "grey")
-seed_points["centroid"].plot(ax=axes[0], color = "black", markersize=1)
-for i in ['0,0', '17,29', '4,24', '13,5']:
-    seed_points[seed_points['id']==i].plot(ax=axes[0], color = "orange", alpha = 0.5)
-    seed_points[seed_points['id'].isin(seed_points.loc[seed_points['id']==i, "neighbours"].values[0])].plot(ax=axes[0], color = "blue", alpha = 0.5)
-axes[0].set_axis_off()
-axes[0].set_title("Spatial indexing")
-
-seed_points.boundary.plot(ax=axes[1], color = "grey")
-seed_points["centroid"].plot(ax=axes[1], color = "black", markersize=1)
-for i in ['0,0', '17,29', '4,24', '13,5']:
-    seed_points[seed_points['id']==i].plot(ax=axes[1], color = "orange", alpha = 0.5)
-    seed_points[seed_points['id'].isin(seed_points.loc[seed_points['id']==i, "vns"].values[0])].plot(ax=axes[1], color = "blue", alpha = 0.5)
-axes[1].set_axis_off()
-axes[1].set_title("Hex method")
-
+fig, ax = plt.subplots(1, 1)
+seed_points.boundary.plot(ax=ax, color="grey")
+seed_points["centroid"].plot(ax=ax, color="black", markersize=1)
+for i in ["0,0", "0,14", "12,16", "8,28", "17,1", "7,7"]:
+    seed_points[seed_points["id"] == i].plot(ax=ax, color="orange", alpha=0.5)
+    seed_points[
+        seed_points["id"].isin(
+            seed_points.loc[seed_points["id"] == i, "neighbours"].values[0]  # type: ignore
+        )
+    ].plot(ax=ax, color="blue", alpha=0.5)
+ax.set_axis_off()
+ax.set_title("Vicinity Node Set (VNS)")
 plt.tight_layout()
 plt.show()
 
