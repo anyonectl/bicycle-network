@@ -35,7 +35,7 @@ def vns(node: Tuple[int, int], hex_radius: int) -> List[Tuple[int, int]]:
     return vns
 
 
-def get_angle(previous: Point, current: Point, next: Point) -> float:
+def compute_angle(previous: Point, current: Point, next: Point) -> float:
     """
     Only works with cartesian coordinates right now
     """
@@ -54,12 +54,17 @@ def get_angle(previous: Point, current: Point, next: Point) -> float:
     return round(float(angle_deg), 1)
 
 
-def direction_bias(angle: float) -> float:
-    if angle > 150.0:  # straight line
+def _direction_bias(angle: float) -> float:
+    if angle > 150.0 or angle == 0.0:  # straight line or no previous node
         return 1.0
     if angle > 90.0:  # slight turn
         return 0.9
-    return 0.75  # sharp turn (angle < 90.0)
+    return 0.75  # sharp turn (angle <= 90.0)
+
+
+def direction_bias(previous: Point, current: Point, next: Point) -> float:
+    angle = compute_angle(previous, current, next)
+    return _direction_bias(angle)
 
 
 def get_bearing(origin: str, destination: str) -> str:
