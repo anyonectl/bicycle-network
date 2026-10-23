@@ -17,15 +17,11 @@ def next_node(
     neighbour_dict = seed_points.loc[
         seed_points["id"] == previous_node, ["neighbours"]
     ].values.tolist()[0][0]
-    reverse_neighbour_dict = {
-        node_id: bearing for bearing, node_id in neighbour_dict.items()
-    }
     vns = (
         seed_points.loc[seed_points["id"].isin(neighbour_dict.values())]
         .sort_values(by=["total_demand"], ascending=False)
         .copy()
     )
-    vns["bearing"] = vns["id"].map(reverse_neighbour_dict)
     demand_sum = float(vns["total_demand"].sum())
     vns["probability"] = vns["total_demand"] / demand_sum
 
