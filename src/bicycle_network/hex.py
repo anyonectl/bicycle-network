@@ -55,7 +55,7 @@ def compute_angle(previous: Point, current: Point, next: Point) -> float:
 
 
 def _direction_bias(angle: float) -> float:
-    if angle > 150.0 or angle == 0.0:  # straight line or no previous node
+    if angle > 150.0:  # straight line
         return 1.0
     if angle > 90.0:  # slight turn
         return 0.9
@@ -63,6 +63,8 @@ def _direction_bias(angle: float) -> float:
 
 
 def direction_bias(previous: Point, current: Point, next: Point) -> float:
+    if previous == current:
+        return 1.0  # edge case when this is the first edge being added to a path
     angle = compute_angle(previous, current, next)
     return _direction_bias(angle)
 

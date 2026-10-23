@@ -1,7 +1,8 @@
 import numpy as np
 import geopandas as gpd
 import pandas as pd
-from shapely import LineString
+from shapely import LineString, Point
+from bicycle_network.hex import direction_bias
 
 
 # TODO: bias terms for each node in the VNS?
@@ -11,6 +12,7 @@ def select_next_node(
     irs: dict,
     seed_points: gpd.GeoDataFrame,
     rng: np.random.Generator,
+    demand_type: str,
 ):
     current_node = irs[path_id]["nodes"][-1]
     previous_node = (
@@ -27,9 +29,33 @@ def select_next_node(
         .copy()
     )
 
+    # Set direction bias for each node in VNS
+    current_point: Point = seed_points.loc[
+        seed_points["id"] == current_node, "centroid"
+    ].iat[0]
+    previous_point: Point = seed_points.loc[
+        seed_points["id"] == previous_node, "centroid"
+    ].iat[0]
+    vns["direction_bias"] = vns["centroid"].apply(
+        lambda x: direction_bias(previous_point, current_point, x)
+    )
+
     # Calculate probabilities for each node in the VNS
-    demand_sum = float(vns["total_demand"].sum())
-    vns["probability"] = vns["total_demand"] / demand_sum
+    match demand_type:
+        case "absolute":
+            demand_series = vns["total_demand"]
+        case "share":
+            demand_series = vns["demand_share"]
+        case "minmax":
+            demand_series = vns["demand_minmax"]
+        case _:
+            raise ValueError(
+                f"demand_type must be 'absolute', 'share' or 'minmax', was: {demand_type}"
+            )
+
+    vns["combined"] = vns["direction_bias"] * demand_series
+    prob_sum = float(vns["combined"].sum())
+    vns["probability"] = vns["combined"] / prob_sum
 
     # Select next node and add to IRS
     tries = vns.shape[0]
@@ -53,6 +79,7 @@ def generate_network(
     max_nodes: int,
     seed_points: gpd.GeoDataFrame,
     rng: np.random.Generator,
+    demand_type: str,
 ):
     """
     Form Initial Node Set (INS) from the first k nodes. k must be larger than max_paths
@@ -87,7 +114,7 @@ def generate_network(
 
         # Build paths
         for _ in range(max_nodes - 1):  # -1 because we already added first_node
-            tmp_irs, finished = select_next_node(i, irs, seed_points, rng)
+            tmp_irs, finished = select_next_node(i, irs, seed_points, rng, demand_type)
             if finished:  # stop if no node in VNS is possible
                 break
             irs = tmp_irs
@@ -102,6 +129,7 @@ def generate_population(
     max_nodes: int,
     seed_points: gpd.GeoDataFrame,
     rng: np.random.Generator,
+    demand_type: str = "share",
 ) -> gpd.GeoDataFrame:
     """
     Create population of n networks (route sets).
@@ -110,7 +138,8 @@ def generate_population(
     pop_list = []
     for i in range(n):
         gdf = create_gdf(
-            generate_network(k, max_paths, max_nodes, seed_points, rng), seed_points
+            generate_network(k, max_paths, max_nodes, seed_points, rng, demand_type),
+            seed_points,
         )
         gdf["network_id"] = i
         # TODO: save_plot(gdf)
