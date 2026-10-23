@@ -14,14 +14,20 @@ def next_node(
     rng: np.random.Generator,
 ):
     # Calculate probabilities for each node in the VNS
-    filter = seed_points.loc[
+    neighbour_dict = seed_points.loc[
         seed_points["id"] == previous_node, ["neighbours"]
     ].values.tolist()[0][0]
-    vns = seed_points.loc[seed_points["id"].isin(filter)].sort_values(
-        by=["total_demand"], ascending=False
+    reverse_neighbour_dict = {
+        node_id: bearing for bearing, node_id in neighbour_dict.items()
+    }
+    vns = (
+        seed_points.loc[seed_points["id"].isin(neighbour_dict.values())]
+        .sort_values(by=["total_demand"], ascending=False)
+        .copy()
     )
-    activity_sum = float(vns["total_demand"].sum())
-    vns["probability"] = vns["total_demand"] / activity_sum
+    vns["bearing"] = vns["id"].map(reverse_neighbour_dict)
+    demand_sum = float(vns["total_demand"].sum())
+    vns["probability"] = vns["total_demand"] / demand_sum
 
     # Select next node and add to dict
     tries = vns.shape[0]
