@@ -2,7 +2,8 @@
 
 from typing import Dict, List, Tuple
 import geohexgrid as ghg
-from shapely import Point, LineString
+import numpy as np
+from shapely import Point
 
 
 def numeric_id(s: str) -> Tuple[int, int]:
@@ -34,26 +35,31 @@ def vns(node: Tuple[int, int], hex_radius: int) -> List[Tuple[int, int]]:
     return vns
 
 
-def get_linestring(origin: Point, destination: Point) -> LineString:
-    return LineString([origin, destination])
-
-
-def get_angle_from_lines(previous: LineString, current: LineString) -> float:
-    return 0.0
-
-
-# We can view two edges as a vector/array with three points: previous, current, next - where next is the one we are testing
 def get_angle(previous: Point, current: Point, next: Point) -> float:
-    # use numpy to calculate angle
-    return 0.0
+    """
+    Only works with cartesian coordinates right now
+    """
+    # Convert edges to spatial/euclidean vectors
+    prev_spatial_v = np.array([previous.x - current.x, previous.y - current.y])
+    next_spatial_v = np.array([next.x - current.x, next.y - current.y])
+
+    # Convert to unit vectors (only keep direction)
+    prev_unit_v = prev_spatial_v / np.linalg.norm(prev_spatial_v)
+    next_unit_v = next_spatial_v / np.linalg.norm(next_spatial_v)
+
+    # Calculate angle
+    angle_rad = np.arccos(np.clip(np.dot(prev_unit_v, next_unit_v), -1.0, 1.0))
+    angle_deg = np.degrees(angle_rad)
+
+    return round(float(angle_deg), 1)
 
 
 def direction_bias(angle: float) -> float:
-    if angle > 170.0:
+    if angle > 150.0:  # straight line
         return 1.0
-    if angle < 90.0:
-        return 0.75
-    return 0.9
+    if angle > 90.0:  # slight turn
+        return 0.9
+    return 0.75  # sharp turn (angle < 90.0)
 
 
 def get_bearing(origin: str, destination: str) -> str:
