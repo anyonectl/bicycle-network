@@ -24,6 +24,7 @@
 # %%
 from bicycle_network import hex, irsg, demand
 import numpy as np
+from sklearn.preprocessing import MinMaxScaler
 from math import ceil
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -134,13 +135,19 @@ seed_points.head()
 # TODO: Ask Anastassia: Is it correct to calculate it like this? Or am I counting stuff twice?
 total_demand_series = seed_points["total_demand"].copy()
 total_demand_sum = float(total_demand_series.sum())
-total_demand_min = total_demand_series.min()
-total_demand_max = total_demand_series.max()
+# total_demand_min = total_demand_series.min()
+# total_demand_max = total_demand_series.max()
 seed_points["demand_share"] = total_demand_series / total_demand_sum
-seed_points["demand_minmax"] = (total_demand_series - total_demand_min) / (
-    total_demand_max - total_demand_min
-)
+scaler = MinMaxScaler()  # TODO: set range so 0.0 isn't possible
+minmax = scaler.fit_transform(seed_points[["total_demand"]])
+seed_points["demand_minmax"] = minmax
+# seed_points["demand_minmax"] = (total_demand_series - total_demand_min) / (
+#     total_demand_max - total_demand_min
+# )
 seed_points.head()
+
+# %%
+seed_points[["total_demand", "demand_share", "demand_minmax"]].describe()
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(24, 8))
@@ -245,22 +252,23 @@ plt.show()
 # ### Run IRSG
 
 # %%
+# %%time
 n_start_nodes = int(
     len(seed_points) / 2
 )  # how many start nodes do we initialise our routes with
-start_pop_abs = irsg.generate_population(
-    N_POP, n_start_nodes, MAX_PATHS, MAX_NODES, seed_points, RNG, demand_type="absolute"
-)
-start_pop_share = irsg.generate_population(
-    N_POP, n_start_nodes, MAX_PATHS, MAX_NODES, seed_points, RNG, demand_type="share"
-)
+# start_pop_abs = irsg.generate_population(
+#     N_POP, n_start_nodes, MAX_PATHS, MAX_NODES, seed_points, RNG, demand_type="absolute"
+# )
+# start_pop_share = irsg.generate_population(
+#     N_POP, n_start_nodes, MAX_PATHS, MAX_NODES, seed_points, RNG, demand_type="share"
+# )
 start_pop_minmax = irsg.generate_population(
     N_POP, n_start_nodes, MAX_PATHS, MAX_NODES, seed_points, RNG, demand_type="minmax"
 )
 
 
 # %%
-def plot_start_pop(pop_gdf, demand_type, save=False):
+def plot_start_pop(pop_gdf, demand_type, save=False, title=""):
     n_cols = 4
     n_rows = ceil(N_POP / n_cols)
 
@@ -290,18 +298,20 @@ def plot_start_pop(pop_gdf, demand_type, save=False):
 
     filename = "start_population"
     if save:
-        plt.savefig(f"{PATH}{filename}_{demand_type}.png", dpi=300, bbox_inches="tight")
+        plt.savefig(
+            f"{PATH}{filename}_{demand_type}_{title}.png", dpi=300, bbox_inches="tight"
+        )
     plt.show()
 
 
 # %%
-plot_start_pop(start_pop_abs, demand_type="absolute", save=False)
+# plot_start_pop(start_pop_abs, demand_type="absolute", save=True, title="connected")
 
 # %%
-plot_start_pop(start_pop_share, demand_type="share", save=False)
+# plot_start_pop(start_pop_share, demand_type="share", save=True, title="connected")
 
 # %%
-plot_start_pop(start_pop_minmax, demand_type="minmax", save=False)
+plot_start_pop(start_pop_minmax, demand_type="minmax", save=True, title="connected")
 
 # %% [markdown]
 # ## Genetic Algorithm

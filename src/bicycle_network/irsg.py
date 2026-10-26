@@ -167,6 +167,39 @@ def normalise_probabilities(df: pd.Series) -> np.ndarray:
     return p / np.sum(p, dtype=np.float64)
 
 
+# RuntimeWarning: invalid value encountered in divide
+#   return p / np.sum(p, dtype=np.float64)
+# numpy.random._generator.Generator.choice()
+# --> 895 'Could not get source, probably due dynamically evaluated source code.'
+
+
+# Exception has occurred: ValueError
+# Probabilities contain NaN
+#   File "/Users/louiseholstandersen/2-areas/itu/thesis/bicycle-network/src/bicycle_network/irsg.py", line 73, in select_next_node
+#         a=vns["id"], p=normalise_probabilities(vns["probability"])
+#                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+#     )
+#     ^
+#   File "/Users/louiseholstandersen/2-areas/itu/thesis/bicycle-network/src/bicycle_network/irsg.py", line 126, in generate_network
+#     tmp_irs, finished = select_next_node(i, irs, seed_points, rng, demand_type)
+#                         ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#   File "/Users/louiseholstandersen/2-areas/itu/thesis/bicycle-network/src/bicycle_network/irsg.py", line 151, in generate_population
+#     irs = generate_network(k, max_paths, max_nodes, seed_points, rng, demand_type)
+#   File "/Users/louiseholstandersen/2-areas/itu/thesis/bicycle-network/scripts/debug_file.py", line 64, in <module>
+#         N_POP, n_start_nodes, MAX_PATHS, MAX_NODES, seed_points, RNG, demand_type="minmax"
+#                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+#     )
+#     ^
+# ValueError: Probabilities contain NaN
+
+# I THINK this error happens when probability=0.0? I can try fix it by setting the minimum
+# in the minmax scaling to 0.0001 or whatever
+
+
 def create_gdf(irs: dict, seed_points: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     # Create dict for network
     d = {
