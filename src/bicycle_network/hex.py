@@ -54,6 +54,8 @@ def compute_angle(previous: Point, current: Point, next: Point) -> float:
     return round(float(angle_deg), 1)
 
 
+# TODO: If 0.75 is lowered to e.g. 0.6, running irsg with minmax demand fails
+# - probabilities contain NaN. How does that happen?
 def _direction_bias(angle: float) -> float:
     if angle > 150.0:  # straight line
         return 1.0
