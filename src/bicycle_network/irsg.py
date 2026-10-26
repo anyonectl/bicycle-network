@@ -1,6 +1,10 @@
+from typing import Dict, List, Tuple
+
+from tqdm import tqdm
 import numpy as np
 import geopandas as gpd
 import pandas as pd
+import networkx as nx
 from shapely import LineString, Point
 from bicycle_network.hex import direction_bias
 
@@ -141,15 +145,18 @@ def generate_population(
     Each network will contain the starting nodes selected from the k nodes with highest demand.
     """
     pop_list = []
-    for i in range(n):
-        gdf = create_gdf(
-            generate_network(k, max_paths, max_nodes, seed_points, rng, demand_type),
-            seed_points,
-        )
-        gdf["network_id"] = i
-        # TODO: save_plot(gdf)
-        pop_list.append(gdf)
-
+    pbar = tqdm(desc=f"Generate {n} connected networks. Loop iterations:", total=n * 15)
+    i = 0
+    while i < n:
+        irs = generate_network(k, max_paths, max_nodes, seed_points, rng, demand_type)
+        graph = create_graph(irs)
+        if nx.is_connected(graph):
+            gdf = create_gdf(irs, seed_points)
+            gdf["network_id"] = i
+            # TODO: save_plot(gdf)
+            pop_list.append(gdf)
+            i = i + 1
+        pbar.update(1)
     pop_gdf = pd.concat(pop_list)
     # TODO: save as geojson here?
     return pop_gdf
@@ -184,6 +191,24 @@ def create_gdf(irs: dict, seed_points: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return network_gdf
 
 
+def create_graph(irs: Dict) -> nx.Graph:
+    graph = nx.Graph(get_edge_list(irs))
+    return graph
+
+
+def get_edge_list(irs: Dict) -> List[Tuple[str, str]]:
+    path_list = []
+    for i in range(len(irs)):
+        path = irs[i]["nodes"]
+        edge_list = get_edges_in_path(path)
+        path_list.append(edge_list)
+    return [edge for edge_list in path_list for edge in edge_list]
+
+
+def get_edges_in_path(path: List[str]) -> List[Tuple[str, str]]:
+    return list(zip(path[:], path[1:]))
+
+
 def graph_connected(graph) -> bool:
     """
     Checks whether a graph/network is connected or not
@@ -215,3 +240,33 @@ def connect_graph(components):
 
     Could use networkx k_edge_augmentation with k=1?
     """
+
+
+# FOR TESTS
+# >>> import networkx as nx
+# >>> irs
+# {0: {'nodes': [0, 1, 2, 3, 4]}, 1: {'nodes': [5, 6, 7, 8, 9]}, 2: {'nodes': [10, 11, 12, 13, 14]}}
+# >>> def create_graph(irs: Dict) -> nx.Graph:
+# ...     graph = nx.Graph(get_edge_list(irs))
+# ...     return graph
+# ...
+# ...
+# ... def get_edge_list(irs: Dict) -> List[Tuple[str, str]]:
+# ...     path_list = []
+# ...     for i in range(len(irs)):
+# ...         path = irs[i]["nodes"]
+# ...         edge_list = get_edges_in_path(path)
+# ...         path_list.append(edge_list)
+# ...     return [edge for edge_list in path_list for edge in edge_list]
+# ...
+# ...
+# ... def get_edges_in_path(path: List[str]) -> List[Tuple[str, str]]:
+# ...     return list(zip(path[:], path[1:]))
+# ...
+# >>> g = create_graph(irs)
+# >>> type(g)
+# <class 'networkx.classes.graph.Graph'>
+# >>> nx.is_connected(g)
+# False
+# >>> nx.number_connected_components(g)
+# 3
