@@ -30,12 +30,17 @@ def select_next_node(
     )
 
     # Set direction bias for each node in VNS
+    # TODO: Fix type warnings
     current_point: Point = seed_points.loc[
         seed_points["id"] == current_node, "centroid"
-    ].iat[0]
+    ].iat[
+        0
+    ]  # type: ignore
     previous_point: Point = seed_points.loc[
         seed_points["id"] == previous_node, "centroid"
-    ].iat[0]
+    ].iat[
+        0
+    ]  # type: ignore
     vns["direction_bias"] = vns["centroid"].apply(
         lambda x: direction_bias(previous_point, current_point, x)
     )
