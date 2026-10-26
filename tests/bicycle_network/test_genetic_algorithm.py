@@ -1,1 +1,0 @@
-import src.bicycle_network.genetic_algorithm

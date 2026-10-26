@@ -5,12 +5,15 @@ import numpy as np
 import pandas as pd
 from shapely import LineString, Point
 
+SEED: int = 8920299146682435931
+RNG: np.random.Generator = np.random.default_rng(seed=SEED)
+
 
 def create_matrix(pairs: gdf, demand: np.ndarray):
     demand_matrix = pd.concat([pairs, pd.Series(demand)], axis=1)
     demand_matrix.columns = ["pair", "u", "v", "geometry", "demand"]
     total_demand = float(demand_matrix["demand"].sum())
-    demand_matrix["demand_share"] = demand_matrix["demand"] * 100 / total_demand
+    demand_matrix["demand_share"] = demand_matrix["demand"] / total_demand
     return demand_matrix
 
 
@@ -32,9 +35,7 @@ def od_pairs(geo_df: gdf) -> gdf:
 
 
 def generate_uniform_demand(n: int) -> np.ndarray:
-    seed: int = 8920299146682435931
-    rng: np.random.Generator = np.random.default_rng(seed=seed)
-    return rng.uniform(low=0.0, high=1.0, size=n)
+    return RNG.uniform(low=0.0, high=100.0, size=n)
 
 
 def generate_weird_demand(n: int) -> np.ndarray:
@@ -42,12 +43,10 @@ def generate_weird_demand(n: int) -> np.ndarray:
 
 
 def make_demand_weird(demand: np.ndarray) -> np.ndarray:
-    seed: int = 8920299146682435931
-    rng: np.random.Generator = np.random.default_rng(seed=seed)
     n = len(demand)
     indices = [x for x in range(n)]
-    doubles = rng.choice(a=indices, size=int(n / 4), replace=False)
-    halves = rng.choice(a=indices, size=int(n / 4), replace=False)
+    doubles = RNG.choice(a=indices, size=int(n / 4), replace=False)
+    halves = RNG.choice(a=indices, size=int(n / 4), replace=False)
     for i in doubles:
         demand[i] = demand[i] * 2
     for i in halves:
