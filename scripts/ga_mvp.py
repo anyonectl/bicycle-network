@@ -103,7 +103,7 @@ ax_hist.set_title("Demand distribution")
 grid.boundary.plot(ax=ax_map, color="black", zorder=0, lw=0.5)
 demand_matrix.plot(
     ax=ax_map,
-    lw=demand_matrix.demand_share * 20,
+    lw=demand_matrix.demand_share * 2000,
     alpha=0.2,
 )
 ax_map.set_axis_off()
@@ -295,13 +295,13 @@ def plot_start_pop(pop_gdf, demand_type, save=False):
 
 
 # %%
-plot_start_pop(start_pop_abs, demand_type="absolute", save=True)
+plot_start_pop(start_pop_abs, demand_type="absolute", save=False)
 
 # %%
-plot_start_pop(start_pop_share, demand_type="share", save=True)
+plot_start_pop(start_pop_share, demand_type="share", save=False)
 
 # %%
-plot_start_pop(start_pop_minmax, demand_type="minmax", save=True)
+plot_start_pop(start_pop_minmax, demand_type="minmax", save=False)
 
 # %% [markdown]
 # ## Genetic Algorithm
