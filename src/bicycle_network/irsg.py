@@ -164,6 +164,9 @@ def generate_population(
 
 def normalise_probabilities(df: pd.Series) -> np.ndarray:
     p = df.to_numpy(dtype=np.float64)
+    sum = np.sum(p, dtype=np.float64)
+    if sum == 0.0:
+        raise ZeroDivisionError
     return p / np.sum(p, dtype=np.float64)
 
 
