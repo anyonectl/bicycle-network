@@ -132,27 +132,22 @@ seed_points.head()
 
 # %%
 # TODO: Ask Anastassia: Is it correct to calculate it like this? Or am I counting stuff twice?
-total_demand_series = seed_points["total_demand"].copy()
-total_demand_sum = float(total_demand_series.sum())
-total_demand_min = total_demand_series.min()
-total_demand_max = total_demand_series.max()
-seed_points["demand_share"] = total_demand_series / total_demand_sum
-seed_points["demand_minmax"] = (total_demand_series - total_demand_min) / (
-    total_demand_max - total_demand_min
+seed_points["demand_share"] = (
+    seed_points["total_demand"] / seed_points["total_demand"].sum()
 )
 seed_points.head()
 
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(24, 8))
+seed_points[["total_demand", "demand_share"]].describe()
+
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(16, 8))
 seed_points.plot(ax=axes[0], column="total_demand", cmap="Blues", legend=True)
 axes[0].set_axis_off()
 axes[0].set_title("Total demand")
 seed_points.plot(ax=axes[1], column="demand_share", cmap="Blues", legend=True)
 axes[1].set_axis_off()
 axes[1].set_title("Demand share")
-seed_points.plot(ax=axes[2], column="demand_minmax", cmap="Blues", legend=True)
-axes[2].set_axis_off()
-axes[2].set_title("Normalised demand (minmax)")
 fig.suptitle("Demand distribution per hexagon", fontsize=16)
 plt.tight_layout()
 plt.show()
@@ -245,6 +240,7 @@ plt.show()
 # ### Run IRSG
 
 # %%
+# %%time
 n_start_nodes = int(
     len(seed_points) / 2
 )  # how many start nodes do we initialise our routes with
@@ -254,13 +250,10 @@ start_pop_abs = irsg.generate_population(
 start_pop_share = irsg.generate_population(
     N_POP, n_start_nodes, MAX_PATHS, MAX_NODES, seed_points, RNG, demand_type="share"
 )
-start_pop_minmax = irsg.generate_population(
-    N_POP, n_start_nodes, MAX_PATHS, MAX_NODES, seed_points, RNG, demand_type="minmax"
-)
 
 
 # %%
-def plot_start_pop(pop_gdf, demand_type, save=False):
+def plot_start_pop(pop_gdf, demand_type, save=False, title=""):
     n_cols = 4
     n_rows = ceil(N_POP / n_cols)
 
@@ -290,18 +283,17 @@ def plot_start_pop(pop_gdf, demand_type, save=False):
 
     filename = "start_population"
     if save:
-        plt.savefig(f"{PATH}{filename}_{demand_type}.png", dpi=300, bbox_inches="tight")
+        plt.savefig(
+            f"{PATH}{filename}_{demand_type}_{title}.png", dpi=300, bbox_inches="tight"
+        )
     plt.show()
 
 
 # %%
-plot_start_pop(start_pop_abs, demand_type="absolute", save=False)
+plot_start_pop(start_pop_abs, demand_type="absolute", save=True, title="connected")
 
 # %%
-plot_start_pop(start_pop_share, demand_type="share", save=False)
-
-# %%
-plot_start_pop(start_pop_minmax, demand_type="minmax", save=False)
+plot_start_pop(start_pop_share, demand_type="share", save=True, title="connected")
 
 # %% [markdown]
 # ## Genetic Algorithm

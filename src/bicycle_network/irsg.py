@@ -1,6 +1,10 @@
+from typing import Dict, List, Tuple
+
+from tqdm import tqdm
 import numpy as np
 import geopandas as gpd
 import pandas as pd
+import networkx as nx
 from shapely import LineString, Point
 from bicycle_network.hex import direction_bias
 
@@ -51,11 +55,9 @@ def select_next_node(
             demand_series = vns["total_demand"]
         case "share":
             demand_series = vns["demand_share"]
-        case "minmax":
-            demand_series = vns["demand_minmax"]
         case _:
             raise ValueError(
-                f"demand_type must be 'absolute', 'share' or 'minmax', was: {demand_type}"
+                f"demand_type must be 'absolute' or 'share', was: {demand_type}"
             )
 
     vns["combined"] = vns["direction_bias"] * demand_series
@@ -141,15 +143,18 @@ def generate_population(
     Each network will contain the starting nodes selected from the k nodes with highest demand.
     """
     pop_list = []
-    for i in range(n):
-        gdf = create_gdf(
-            generate_network(k, max_paths, max_nodes, seed_points, rng, demand_type),
-            seed_points,
-        )
-        gdf["network_id"] = i
-        # TODO: save_plot(gdf)
-        pop_list.append(gdf)
-
+    pbar = tqdm(desc=f"Generate {n} connected networks. Loop iterations:", total=n * 15)
+    i = 0
+    while i < n:
+        irs = generate_network(k, max_paths, max_nodes, seed_points, rng, demand_type)
+        graph = create_graph(irs)
+        if nx.is_connected(graph):
+            gdf = create_gdf(irs, seed_points)
+            gdf["network_id"] = i
+            # TODO: save_plot(gdf)
+            pop_list.append(gdf)
+            i = i + 1
+        pbar.update(1)
     pop_gdf = pd.concat(pop_list)
     # TODO: save as geojson here?
     return pop_gdf
@@ -157,6 +162,9 @@ def generate_population(
 
 def normalise_probabilities(df: pd.Series) -> np.ndarray:
     p = df.to_numpy(dtype=np.float64)
+    sum = np.sum(p, dtype=np.float64)
+    if sum == 0.0:
+        raise ZeroDivisionError
     return p / np.sum(p, dtype=np.float64)
 
 
@@ -182,3 +190,84 @@ def create_gdf(irs: dict, seed_points: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     network_gdf = gpd.GeoDataFrame(d, geometry=geom, crs=None)
 
     return network_gdf
+
+
+def create_graph(irs: Dict) -> nx.Graph:
+    graph = nx.Graph(get_edge_list(irs))
+    return graph
+
+
+def get_edge_list(irs: Dict) -> List[Tuple[str, str]]:
+    path_list = []
+    for i in range(len(irs)):
+        path = irs[i]["nodes"]
+        edge_list = get_edges_in_path(path)
+        path_list.append(edge_list)
+    return [edge for edge_list in path_list for edge in edge_list]
+
+
+def get_edges_in_path(path: List[str]) -> List[Tuple[str, str]]:
+    return list(zip(path[:], path[1:]))
+
+
+def graph_connected(graph) -> bool:
+    """
+    Checks whether a graph/network is connected or not
+    Uses DFS
+    """
+    return False
+
+
+def connected_components(graph):
+    """
+    Returns the connected components of a graph (as list? set? sth else?)
+    """
+
+
+def connect_graph(components):
+    """
+    Find the shortest path on the hex grid from any vertex in one
+    connected component to any vertex in another connected component
+
+    Alternative: Randomly choose three vertices in each component
+    and run single-source shortest path (BFS) from these
+
+    The graph we're finding the SPs on is the complement of the produced network,
+    i.e. the complete planar graph on the hex grid but with the edges and vertices
+    already added in the produced network removed.
+
+    V = all seed points in the grid - seed points already added to the produced network
+    Each vertex has an edge to all of, its neighbours, i.e. |V| * 2 < |E| < |V| * 6
+
+    Could use networkx k_edge_augmentation with k=1?
+    """
+
+
+# FOR TESTS
+# >>> import networkx as nx
+# >>> irs
+# {0: {'nodes': [0, 1, 2, 3, 4]}, 1: {'nodes': [5, 6, 7, 8, 9]}, 2: {'nodes': [10, 11, 12, 13, 14]}}
+# >>> def create_graph(irs: Dict) -> nx.Graph:
+# ...     graph = nx.Graph(get_edge_list(irs))
+# ...     return graph
+# ...
+# ...
+# ... def get_edge_list(irs: Dict) -> List[Tuple[str, str]]:
+# ...     path_list = []
+# ...     for i in range(len(irs)):
+# ...         path = irs[i]["nodes"]
+# ...         edge_list = get_edges_in_path(path)
+# ...         path_list.append(edge_list)
+# ...     return [edge for edge_list in path_list for edge in edge_list]
+# ...
+# ...
+# ... def get_edges_in_path(path: List[str]) -> List[Tuple[str, str]]:
+# ...     return list(zip(path[:], path[1:]))
+# ...
+# >>> g = create_graph(irs)
+# >>> type(g)
+# <class 'networkx.classes.graph.Graph'>
+# >>> nx.is_connected(g)
+# False
+# >>> nx.number_connected_components(g)
+# 3
