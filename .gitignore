@@ -4,7 +4,7 @@ data/*
 results/plots/*
 !results/plots/start_population.png
 !results/plots/start_population_absolute_connected.png
-!results/plots/start_population_minmax_connected.png
+!results/plots/start_population_share_connected.png
 resources**
 *.ipynb
 
