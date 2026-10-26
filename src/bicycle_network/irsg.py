@@ -182,3 +182,36 @@ def create_gdf(irs: dict, seed_points: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     network_gdf = gpd.GeoDataFrame(d, geometry=geom, crs=None)
 
     return network_gdf
+
+
+def graph_connected(graph) -> bool:
+    """
+    Checks whether a graph/network is connected or not
+    Uses DFS
+    """
+    return False
+
+
+def connected_components(graph):
+    """
+    Returns the connected components of a graph (as list? set? sth else?)
+    """
+
+
+def connect_graph(components):
+    """
+    Find the shortest path on the hex grid from any vertex in one
+    connected component to any vertex in another connected component
+
+    Alternative: Randomly choose three vertices in each component
+    and run single-source shortest path (BFS) from these
+
+    The graph we're finding the SPs on is the complement of the produced network,
+    i.e. the complete planar graph on the hex grid but with the edges and vertices
+    already added in the produced network removed.
+
+    V = all seed points in the grid - seed points already added to the produced network
+    Each vertex has an edge to all of, its neighbours, i.e. |V| * 2 < |E| < |V| * 6
+
+    Could use networkx k_edge_augmentation with k=1?
+    """
