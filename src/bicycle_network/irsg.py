@@ -151,7 +151,8 @@ def generate_population(
         if nx.is_connected(graph):
             gdf = create_gdf(irs, seed_points)
             gdf["network_id"] = i
-            gdf["demand_coverage"] = network_demand_coverage(graph, demand_matrix)
+            nodes = list(graph)
+            gdf["demand_coverage"] = network_demand_coverage(nodes, gdf, demand_matrix)
             # TODO: save_plot(gdf)
             pop_list.append(gdf)
             i = i + 1
@@ -174,10 +175,11 @@ def create_gdf(
 ) -> gpd.GeoDataFrame:
     # Create dict for network
     d = {
+        "path": [path for path in irs.values()],
         "path_id": [path_id for path_id in irs],
-        "start_id": [path[0] for _, path in irs.items()],
-        "end_id": [path[-1] for _, path in irs.items()],
-        "path": [path for _, path in irs.items()],
+        "path_length": [len(path) for path in irs.values()],
+        # "start_id": [path[0] for _, path in irs.items()],
+        # "end_id": [path[-1] for _, path in irs.items()],
         # 'demand_covered': [],
         # 'geometry': []
     }
@@ -189,8 +191,14 @@ def create_gdf(
         for path in d["path"]
     ]
 
-    # Create dataframe
-    network_gdf = gpd.GeoDataFrame(d, geometry=geom, crs=None)
+    # Create geodataframe with one row for each node
+    network_gdf = (
+        gpd.GeoDataFrame(d, geometry=geom, crs=None)
+        .explode("path")
+        .rename(columns={"path": "cell_id"})
+        .reset_index(drop=True)
+    )
+    network_gdf["node_position"] = network_gdf.groupby("path_id").cumcount()
 
     return network_gdf
 
