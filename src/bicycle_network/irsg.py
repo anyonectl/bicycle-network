@@ -7,6 +7,7 @@ import pandas as pd
 import networkx as nx
 from shapely import LineString, Point
 from bicycle_network.hex import direction_bias
+from bicycle_network.demand import network_demand_coverage
 
 
 # TODO: bias terms for each node in the VNS?
@@ -135,6 +136,7 @@ def generate_population(
     max_paths: int,
     max_nodes: int,
     seed_points: gpd.GeoDataFrame,
+    demand_matrix: pd.DataFrame,
     rng: np.random.Generator,
     demand_type: str = "share",
 ) -> gpd.GeoDataFrame:
@@ -151,6 +153,7 @@ def generate_population(
         if nx.is_connected(graph):
             gdf = create_gdf(irs, seed_points)
             gdf["network_id"] = i
+            gdf["demand_coverage"] = network_demand_coverage(graph, demand_matrix)
             # TODO: save_plot(gdf)
             pop_list.append(gdf)
             i = i + 1

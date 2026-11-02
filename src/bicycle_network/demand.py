@@ -3,13 +3,14 @@ from geopandas import GeoDataFrame as gdf
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
+import networkx as nx
 from shapely import LineString, Point
 
 SEED: int = 8920299146682435931
 RNG: np.random.Generator = np.random.default_rng(seed=SEED)
 
 
-def create_matrix(pairs: gdf, demand: np.ndarray):
+def create_matrix(pairs: gdf, demand: np.ndarray) -> pd.DataFrame:
     demand_matrix = pd.concat([pairs, pd.Series(demand)], axis=1)
     demand_matrix.columns = ["pair", "u", "v", "geometry", "demand"]
     total_demand = float(demand_matrix["demand"].sum())
@@ -52,6 +53,20 @@ def make_demand_weird(demand: np.ndarray) -> np.ndarray:
     for i in halves:
         demand[i] = demand[i] / 1.5
     return demand
+
+
+def network_demand_coverage(graph: nx.Graph, demand_matrix: pd.DataFrame) -> float:
+    demand_sum = 0.0
+    # BUG: This counts some seed point pairs twice. Need to somehow note that they're already counted?
+    for vertex in graph:
+        demand_sum = (
+            demand_sum
+            + demand_matrix[
+                (demand_matrix["u"] == vertex) | (demand_matrix["v"] == vertex)
+            ]["demand"].sum()
+        )
+    total_demand = float(demand_matrix["demand"].sum())
+    return demand_sum * 100 / total_demand
 
 
 # Code from NumPy docs
