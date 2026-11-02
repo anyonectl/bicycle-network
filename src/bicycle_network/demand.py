@@ -9,7 +9,7 @@ SEED: int = 8920299146682435931
 RNG: np.random.Generator = np.random.default_rng(seed=SEED)
 
 
-def create_matrix(pairs: gdf, demand: np.ndarray):
+def create_matrix(pairs: gdf, demand: np.ndarray) -> pd.DataFrame:
     demand_matrix = pd.concat([pairs, pd.Series(demand)], axis=1)
     demand_matrix.columns = ["pair", "u", "v", "geometry", "demand"]
     total_demand = float(demand_matrix["demand"].sum())
@@ -52,6 +52,18 @@ def make_demand_weird(demand: np.ndarray) -> np.ndarray:
     for i in halves:
         demand[i] = demand[i] / 1.5
     return demand
+
+
+def network_demand_coverage(
+    nodes_in_network: list, network: gdf, demand_matrix: pd.DataFrame
+) -> float:
+    total_demand = float(demand_matrix["demand"].sum())
+    pairs_in_network = demand_matrix[["u", "v", "demand"]][
+        demand_matrix["u"].isin(nodes_in_network)
+        & demand_matrix["v"].isin(nodes_in_network)
+    ].copy()
+    network_demand_sum = pairs_in_network["demand"].sum()
+    return network_demand_sum * 100 / total_demand
 
 
 # Code from NumPy docs

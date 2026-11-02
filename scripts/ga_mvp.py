@@ -240,16 +240,37 @@ plt.show()
 # ### Run IRSG
 
 # %%
-# %%time
 n_start_nodes = int(
     len(seed_points) / 2
 )  # how many start nodes do we initialise our routes with
+
+# %%
+# %%time
 start_pop_abs = irsg.generate_population(
-    N_POP, n_start_nodes, MAX_PATHS, MAX_NODES, seed_points, RNG, demand_type="absolute"
+    N_POP,
+    n_start_nodes,
+    MAX_PATHS,
+    MAX_NODES,
+    seed_points,
+    demand_matrix,
+    RNG,
+    demand_type="absolute",
 )
+start_pop_abs.head()
+
+# %%
+# %%time
 start_pop_share = irsg.generate_population(
-    N_POP, n_start_nodes, MAX_PATHS, MAX_NODES, seed_points, RNG, demand_type="share"
+    N_POP,
+    n_start_nodes,
+    MAX_PATHS,
+    MAX_NODES,
+    seed_points,
+    demand_matrix,
+    RNG,
+    demand_type="share",
 )
+start_pop_share.head()
 
 
 # %%
@@ -265,17 +286,19 @@ def plot_start_pop(pop_gdf, demand_type, save=False, title=""):
     for i in range(N_POP):
         ax = axes[i]
         network = pop_gdf[pop_gdf["network_id"].values == i]
-        colors = cmap(np.linspace(0, 1, len(network)))
+        demand_coverage = network.at[0, "demand_coverage"]
+        path_ids = network["path_id"].unique()
+        colors = cmap(np.linspace(0, 1, len(path_ids)))
         seed_points.boundary.plot(ax=ax, color="grey", lw=1)
         grid["centroid"].plot(ax=ax, color="black", markersize=1)
 
-        for path_id in network["path_id"]:
-            network[network["path_id"] == path_id].plot(
+        for path_id in path_ids:
+            network[network["path_id"] == path_id].iloc[[0]].plot(
                 ax=ax, lw=5, alpha=0.5, label=path_id, color=colors[path_id]
             )
 
         # ax.legend()
-        ax.set_title(f"Network {i}")
+        ax.set_title(f"Network {i}, demand coverage: {demand_coverage:.2f} %")
         ax.set_axis_off()
 
     fig.suptitle("Generation 0", fontsize=16)

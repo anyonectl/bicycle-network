@@ -7,21 +7,20 @@ import pandas as pd
 import networkx as nx
 from shapely import LineString, Point
 from bicycle_network.hex import direction_bias
+from bicycle_network.demand import network_demand_coverage
 
 
 # TODO: bias terms for each node in the VNS?
 # TODO: needs some way to stop if no node in VNS is possible. boolean in irs dict?
 def select_next_node(
     path_id: int,
-    irs: dict,
+    irs: Dict[int, List[str]],
     seed_points: gpd.GeoDataFrame,
     rng: np.random.Generator,
     demand_type: str,
 ):
-    current_node = irs[path_id]["nodes"][-1]
-    previous_node = (
-        irs[path_id]["nodes"][-2] if len(irs[path_id]["nodes"]) > 1 else current_node
-    )
+    current_node = irs[path_id][-1]
+    previous_node = irs[path_id][-2] if len(irs[path_id]) > 1 else current_node
 
     # Create Vicinity Node Set (VNS) for the current node, sorted by demand
     neighbour_dict = seed_points.loc[
@@ -71,8 +70,8 @@ def select_next_node(
         next_node = rng.choice(
             a=vns["id"], p=normalise_probabilities(vns["probability"])
         )
-        if next_node not in irs[path_id]["nodes"]:
-            irs[path_id]["nodes"].append(next_node)
+        if next_node not in irs[path_id]:
+            irs[path_id].append(next_node)
             break
         else:
             vns = vns[(vns["id"] != next_node)]
@@ -93,7 +92,7 @@ def generate_network(
     Form Initial Route Set (IRS) by selecting a first node from the INS for each path,
     and then adding nodes from the Vicinity Node Set (VNS) of the previous node until max_nodes is reached.
     """
-    irs = {}
+    irs: Dict[int, List[str]] = {}
     ins = (
         seed_points.copy()
         .sort_values("total_demand", ascending=False)
@@ -112,8 +111,8 @@ def generate_network(
             a=ins["id"], p=normalise_probabilities(ins["probability"])
         )
 
-        # Add to dict
-        irs[i] = {"nodes": [first_node]}
+        # Add to list of lists
+        irs[i] = [first_node]
 
         # Remove selected node from INS
         ins = ins[(ins["id"] != first_node)]
@@ -135,6 +134,7 @@ def generate_population(
     max_paths: int,
     max_nodes: int,
     seed_points: gpd.GeoDataFrame,
+    demand_matrix: pd.DataFrame,
     rng: np.random.Generator,
     demand_type: str = "share",
 ) -> gpd.GeoDataFrame:
@@ -151,6 +151,8 @@ def generate_population(
         if nx.is_connected(graph):
             gdf = create_gdf(irs, seed_points)
             gdf["network_id"] = i
+            nodes = list(graph)
+            gdf["demand_coverage"] = network_demand_coverage(nodes, gdf, demand_matrix)
             # TODO: save_plot(gdf)
             pop_list.append(gdf)
             i = i + 1
@@ -168,13 +170,16 @@ def normalise_probabilities(df: pd.Series) -> np.ndarray:
     return p / np.sum(p, dtype=np.float64)
 
 
-def create_gdf(irs: dict, seed_points: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+def create_gdf(
+    irs: Dict[int, List[str]], seed_points: gpd.GeoDataFrame
+) -> gpd.GeoDataFrame:
     # Create dict for network
     d = {
+        "path": [path for path in irs.values()],
         "path_id": [path_id for path_id in irs],
-        "start_id": [path.get("nodes")[:][0] for _, path in irs.items()],
-        "end_id": [path.get("nodes")[:][-1] for _, path in irs.items()],
-        "path": [path.get("nodes") for _, path in irs.items()],
+        "path_length": [len(path) for path in irs.values()],
+        # "start_id": [path[0] for _, path in irs.items()],
+        # "end_id": [path[-1] for _, path in irs.items()],
         # 'demand_covered': [],
         # 'geometry': []
     }
@@ -186,21 +191,26 @@ def create_gdf(irs: dict, seed_points: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         for path in d["path"]
     ]
 
-    # Create dataframe
-    network_gdf = gpd.GeoDataFrame(d, geometry=geom, crs=None)
+    # Create geodataframe with one row for each node
+    network_gdf = (
+        gpd.GeoDataFrame(d, geometry=geom, crs=None)
+        .explode("path")
+        .rename(columns={"path": "cell_id"})
+        .reset_index(drop=True)
+    )
+    network_gdf["node_position"] = network_gdf.groupby("path_id").cumcount()
 
     return network_gdf
 
 
-def create_graph(irs: Dict) -> nx.Graph:
+def create_graph(irs: Dict[int, List[str]]) -> nx.Graph:
     graph = nx.Graph(get_edge_list(irs))
     return graph
 
 
-def get_edge_list(irs: Dict) -> List[Tuple[str, str]]:
+def get_edge_list(irs: Dict[int, List[str]]) -> List[Tuple[str, str]]:
     path_list = []
-    for i in range(len(irs)):
-        path = irs[i]["nodes"]
+    for _, path in irs.items():
         edge_list = get_edges_in_path(path)
         path_list.append(edge_list)
     return [edge for edge_list in path_list for edge in edge_list]
