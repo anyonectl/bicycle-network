@@ -13,6 +13,9 @@
 # ---
 
 # %% [markdown]
+# # Hex grid, demand matrix and Initial Route Set Generation (IRSG)
+
+# %% [markdown]
 # ## Setup
 
 
@@ -159,7 +162,6 @@ plt.show()
 # ### Variables
 
 # %%
-N_ITE: int = 100  # iterations
 N_POP: int = 20
 MAX_PATHS: int = 10
 MAX_NODES: int = 15
