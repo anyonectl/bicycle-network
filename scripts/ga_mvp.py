@@ -166,7 +166,8 @@ MAX_NODES: int = 15
 SEED: int = 3581054352
 RNG: np.random.Generator = np.random.default_rng(seed=SEED)
 ROOT = "../"
-PATH = ROOT + "results/plots/"
+PLOT_PATH = ROOT + "results/plots/"
+DATA_PATH = ROOT + "results/network-data/"
 
 
 # %% [markdown]
@@ -245,7 +246,6 @@ n_start_nodes = int(
 )  # how many start nodes do we initialise our routes with
 
 # %%
-# %%time
 start_pop_abs = irsg.generate_population(
     N_POP,
     n_start_nodes,
@@ -256,10 +256,27 @@ start_pop_abs = irsg.generate_population(
     RNG,
     demand_type="absolute",
 )
-start_pop_abs.head()
 
 # %%
-# %%time
+start_pop_abs = start_pop_abs[
+    [
+        "cell_id",
+        "node_position",
+        "path_id",
+        "network_id",
+        "demand_coverage",
+        "geometry",  # for the path
+    ]
+].copy()
+print(start_pop_abs.info())
+start_pop_abs.head(20)
+
+# %%
+filename = "start_pop_abs_connected"
+ext = "geojson"
+start_pop_abs.to_file(f"{DATA_PATH}{filename}.{ext}", driver="GeoJSON")
+
+# %%
 start_pop_share = irsg.generate_population(
     N_POP,
     n_start_nodes,
@@ -270,7 +287,25 @@ start_pop_share = irsg.generate_population(
     RNG,
     demand_type="share",
 )
-start_pop_share.head()
+
+# %%
+start_pop_share = start_pop_share[
+    [
+        "cell_id",
+        "node_position",
+        "path_id",
+        "network_id",
+        "demand_coverage",
+        "geometry",  # for the path
+    ]
+].copy()
+print(start_pop_share.info())
+start_pop_share.head(20)
+
+# %%
+filename = "start_pop_share_connected"
+ext = "geojson"
+start_pop_share.to_file(f"{DATA_PATH}{filename}.{ext}", driver="GeoJSON")
 
 
 # %%
@@ -307,7 +342,9 @@ def plot_start_pop(pop_gdf, demand_type, save=False, title=""):
     filename = "start_population"
     if save:
         plt.savefig(
-            f"{PATH}{filename}_{demand_type}_{title}.png", dpi=300, bbox_inches="tight"
+            f"{PLOT_PATH}{filename}_{demand_type}_{title}.png",
+            dpi=300,
+            bbox_inches="tight",
         )
     plt.show()
 
