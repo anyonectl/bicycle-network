@@ -28,8 +28,8 @@ def plot_population(
         demand_coverage = network.at[0, "demand_coverage"]
         path_ids = network["path_id"].unique()
         colors = cmap(np.linspace(0, 1, len(path_ids)))
-        seed_points.boundary.plot(ax=ax, color="grey", lw=1)
-        grid["centroid"].plot(ax=ax, color="black", markersize=1)
+        grid.boundary.plot(ax=ax, color="grey", lw=1)
+        seed_points["geometry"].plot(ax=ax, color="black", markersize=1)
 
         for path_id in path_ids:
             network[network["path_id"] == path_id].iloc[[0]].plot(

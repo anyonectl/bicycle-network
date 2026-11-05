@@ -35,16 +35,16 @@ def select_next_node(
     # Set direction bias for each node in VNS
     # TODO: Fix type warnings
     current_point: Point = seed_points.loc[
-        seed_points["id"] == current_node, "centroid"
+        seed_points["id"] == current_node, "geometry"
     ].iat[
         0
     ]  # type: ignore
     previous_point: Point = seed_points.loc[
-        seed_points["id"] == previous_node, "centroid"
+        seed_points["id"] == previous_node, "geometry"
     ].iat[
         0
     ]  # type: ignore
-    vns["direction_bias"] = vns["centroid"].apply(
+    vns["direction_bias"] = vns["geometry"].apply(
         lambda x: direction_bias(previous_point, current_point, x)
     )
 
@@ -185,7 +185,7 @@ def create_gdf(
     }
 
     # Create geometries
-    id_to_centroid = seed_points.set_index("id")["centroid"].to_dict()
+    id_to_centroid = seed_points.set_index("id")["geometry"].to_dict()
     geom = [
         LineString([id_to_centroid[point_id] for point_id in path])
         for path in d["path"]
