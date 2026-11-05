@@ -9,8 +9,10 @@ SEED: int = 8920299146682435931
 RNG: np.random.Generator = np.random.default_rng(seed=SEED)
 
 
-def create_matrix(pairs: gdf, demand: np.ndarray) -> pd.DataFrame:
-    demand_matrix = pd.concat([pairs, pd.Series(demand)], axis=1)
+def create_matrix(pairs: gdf, demand: np.ndarray) -> gdf:
+    demand_matrix = gdf(
+        pd.concat([pairs, pd.Series(demand)], axis=1), geometry="geometry"
+    )
     demand_matrix.columns = ["pair", "u", "v", "geometry", "demand"]
     total_demand = float(demand_matrix["demand"].sum())
     demand_matrix["demand_share"] = demand_matrix["demand"] / total_demand
