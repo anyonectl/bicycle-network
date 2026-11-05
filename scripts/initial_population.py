@@ -25,11 +25,22 @@
 
 
 # %%
-from bicycle_network import hex, irsg, demand
+from bicycle_network import hex, irsg, demand, plot
 import numpy as np
-from math import ceil
 import matplotlib.pyplot as plt
-import matplotlib as mpl
+
+# %% [markdown]
+# ### Variables
+
+# %%
+N_POP: int = 20
+MAX_PATHS: int = 10
+MAX_NODES: int = 15
+SEED: int = 3581054352
+RNG: np.random.Generator = np.random.default_rng(seed=SEED)
+ROOT = "../"
+PLOT_PATH = ROOT + "results/plots/"
+DATA_PATH = ROOT + "results/network-data/"
 
 # %% [markdown]
 # ## Grid and seed points
@@ -46,7 +57,6 @@ grid["centroid"].plot(ax=axes[1])
 axes[1].set_title("Centroids")
 plt.tight_layout()
 plt.show()
-
 
 # %%
 ax = grid.boundary.plot(figsize=(10, 10))
@@ -69,7 +79,6 @@ plt.show()
 
 # %% [markdown]
 # ### Create all seed point pairs
-
 
 # %%
 test_pairs = demand.od_pairs(grid)
@@ -120,7 +129,7 @@ plt.show()
 # ### Aggregate demand per seed point
 
 # %%
-seed_points = grid
+seed_points = grid.copy()
 seed_points.columns = ["id", "geometry", "centroid"]
 seed_points["total_demand"] = seed_points.apply(
     lambda x: sum(
@@ -157,20 +166,6 @@ plt.show()
 
 # %% [markdown]
 # ## Initial Route Set Generation (IRSG)
-
-# %% [markdown]
-# ### Variables
-
-# %%
-N_POP: int = 20
-MAX_PATHS: int = 10
-MAX_NODES: int = 15
-SEED: int = 3581054352
-RNG: np.random.Generator = np.random.default_rng(seed=SEED)
-ROOT = "../"
-PLOT_PATH = ROOT + "results/plots/"
-DATA_PATH = ROOT + "results/network-data/"
-
 
 # %% [markdown]
 # ### Create Vicinity Node Set (VNS) for each seed point
@@ -309,56 +304,55 @@ filename = "start_pop_share_connected"
 ext = "geojson"
 start_pop_share.to_file(f"{DATA_PATH}{filename}.{ext}", driver="GeoJSON")
 
+# %%
+plot.plot_population(
+    start_pop_abs,
+    seed_points,
+    grid,
+    demand_type="absolute",
+    save=False,
+    output_path=PLOT_PATH,
+    title="connected",
+)
 
 # %%
-def plot_start_pop(pop_gdf, demand_type, save=False, title=""):
-    n_cols = 4
-    n_rows = ceil(N_POP / n_cols)
+plot.plot_population(
+    start_pop_share,
+    seed_points,
+    grid,
+    demand_type="share",
+    save=False,
+    output_path=PLOT_PATH,
+    title="connected",
+)
 
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 5 * n_rows))
-    axes = axes.ravel()
+# %%
+print(demand_matrix.info())
+demand_matrix.head(5)
 
-    cmap = mpl.colormaps.get_cmap("tab10")
-
-    for i in range(N_POP):
-        ax = axes[i]
-        network = pop_gdf[pop_gdf["network_id"].values == i]
-        demand_coverage = network.at[0, "demand_coverage"]
-        path_ids = network["path_id"].unique()
-        colors = cmap(np.linspace(0, 1, len(path_ids)))
-        seed_points.boundary.plot(ax=ax, color="grey", lw=1)
-        grid["centroid"].plot(ax=ax, color="black", markersize=1)
-
-        for path_id in path_ids:
-            network[network["path_id"] == path_id].iloc[[0]].plot(
-                ax=ax, lw=5, alpha=0.5, label=path_id, color=colors[path_id]
-            )
-
-        # ax.legend()
-        ax.set_title(f"Network {i}, demand coverage: {demand_coverage:.2f} %")
-        ax.set_axis_off()
-
-    fig.suptitle("Generation 0", fontsize=16)
-    plt.tight_layout()
-
-    filename = "start_population"
-    if save:
-        plt.savefig(
-            f"{PLOT_PATH}{filename}_{demand_type}_{title}.png",
-            dpi=300,
-            bbox_inches="tight",
-        )
-    plt.show()
+# %%
+demand_matrix = demand_matrix[
+    ["pair", "u", "v", "demand", "demand_share", "geometry"]
+].copy()
+demand_matrix.to_file(f"{DATA_PATH}demand_matrix.geojson", driver="GeoJSON")
 
 
 # %%
-plot_start_pop(start_pop_abs, demand_type="absolute", save=True, title="connected")
+print(grid.info())
+grid.head(5)
 
 # %%
-plot_start_pop(start_pop_share, demand_type="share", save=True, title="connected")
+grid = grid[["cell_id", "geometry"]].copy()
+grid.to_file(f"{DATA_PATH}grid.geojson", driver="GeoJSON")
 
-# %% [markdown]
-# ## Genetic Algorithm
-#
-# TODO
-#
+# %%
+print(seed_points.info())
+seed_points.head(5)
+
+# %%
+seed_points = (
+    seed_points[["id", "total_demand", "demand_share", "neighbours", "centroid"]]
+    .set_geometry("centroid")
+    .copy()
+)
+seed_points.to_file(f"{DATA_PATH}seed_points.geojson", driver="GeoJSON")
