@@ -23,7 +23,8 @@
 # %autoreload 2
 
 # %%
-from bicycle_network import irsg, plot
+import json
+from bicycle_network import irsg
 import numpy as np
 import geopandas as gpd
 
@@ -55,14 +56,16 @@ demand_matrix = gpd.read_file(DEMAND_MATRIX_FILE)
 # ## Run IRSG
 
 # %%
-n_start_nodes = int(
-    len(seed_points) / 2
-)  # how many start nodes do we initialise our routes with
+# how many nodes should be used in the INS (initial node set)
+k = int(len(seed_points) / 2)
+
+# %% [markdown]
+# ### Absolute demand
 
 # %%
 start_pop_abs = irsg.generate_population(
     N_POP,
-    n_start_nodes,
+    k,
     MAX_PATHS,
     MAX_NODES,
     seed_points,
@@ -72,28 +75,32 @@ start_pop_abs = irsg.generate_population(
 )
 
 # %%
-start_pop_abs = start_pop_abs[
-    [
-        "cell_id",
-        "node_position",
-        "path_id",
-        "network_id",
-        "demand_coverage",
-        "geometry",  # for the path
-    ]
-].copy()
-print(start_pop_abs.info())
-start_pop_abs.head(20)
+print(start_pop_abs)
 
 # %%
 filename = "start_pop_abs_connected"
-ext = "geojson"
-start_pop_abs.to_file(f"{DATA_PATH}{filename}.{ext}", driver="GeoJSON")
+with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
+    json.dump(start_pop_abs, json_file, indent=4)
+
+# %%
+# TODO Fix plotting after restructuring to dict
+# plot.plot_population(
+#     start_pop_abs,
+#     seed_points,
+#     grid,
+#     demand_type="absolute",
+#     save=False,
+#     output_path=PLOT_PATH,
+#     title="connected",
+# )
+
+# %% [markdown]
+# ### Demand share
 
 # %%
 start_pop_share = irsg.generate_population(
     N_POP,
-    n_start_nodes,
+    k,
     MAX_PATHS,
     MAX_NODES,
     seed_points,
@@ -103,42 +110,21 @@ start_pop_share = irsg.generate_population(
 )
 
 # %%
-start_pop_share = start_pop_share[
-    [
-        "cell_id",
-        "node_position",
-        "path_id",
-        "network_id",
-        "demand_coverage",
-        "geometry",  # for the path
-    ]
-].copy()
-print(start_pop_share.info())
-start_pop_share.head(20)
+print(start_pop_share)
 
 # %%
 filename = "start_pop_share_connected"
-ext = "geojson"
-start_pop_share.to_file(f"{DATA_PATH}{filename}.{ext}", driver="GeoJSON")
+with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
+    json.dump(start_pop_share, json_file, indent=4)
 
 # %%
-plot.plot_population(
-    start_pop_abs,
-    seed_points,
-    grid,
-    demand_type="absolute",
-    save=False,
-    output_path=PLOT_PATH,
-    title="connected",
-)
-
-# %%
-plot.plot_population(
-    start_pop_share,
-    seed_points,
-    grid,
-    demand_type="share",
-    save=False,
-    output_path=PLOT_PATH,
-    title="connected",
-)
+# TODO Fix plotting after restructuring to dict
+# plot.plot_population(
+#     start_pop_share,
+#     seed_points,
+#     grid,
+#     demand_type="share",
+#     save=False,
+#     output_path=PLOT_PATH,
+#     title="connected",
+# )
