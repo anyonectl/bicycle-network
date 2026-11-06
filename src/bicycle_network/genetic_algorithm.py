@@ -1,78 +1,67 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List, TypedDict
 
 # Gene: a path consisting of several edges
 # Chromosome: a candidate solution (i.e. a network) consisting of genes
 # Population: a collection of candidate solutions
 # Generation: the population in a given iteration of the genetic algorithm
 
-### TYPE ALIASES ###
+# TYPE ALIASES
+type Population = Dict[int, Network]
 
-type EdgeList = list[Tuple[int, int]]
-type Gene = list[int] # the ints map to bit indexes in a chromosome
-type Chromosome = int # each bit is an edge, identified by its bit index in the int
-type Population = dict[Chromosome, float] # float for fitness function
 
-### MAIN ###
+# TODO Put in own module/class file with methods, i.e. get path, get nodes, get geoms etc
+class Network(TypedDict):
+    demand_covered: float
+    paths: Dict[int, List[str]]  # irs/ips
 
-def run(edges: EdgeList, demand: List[float], iterations: int) -> EdgeList:
-    N = len(edges)
-    total_demand = sum(demand)
-    return _genetic_algorithm(iterations, N, demand, total_demand)
+
+# MAIN
+
+
+def run(start_pop: Population, iterations: int) -> Population:
+    return _genetic_algorithm(start_pop, iterations)
     # should the last population be returned to the user, or something else?
 
-### VISUALISATION ##
 
-def plot_network():
-    """
-    Visualises a chromosome as a network, including the percentage of demand covered.
-    """
+# ORCHESTRATOR
 
-def plot_generation():
-    """
-    Creates a scatter plot of a generation, where each blob is a chromosome (network),
-    the x axis is the total length of the network, and the y axis is the percentage of
-    total demand covered.
-    """
 
-### ORCHESTRATOR ###
-
-def _genetic_algorithm(iterations: int, N: int, demand: List[float], total_demand: float) -> Population:
-    population = _initialise(N)
-    for i in range(iterations): # or until some other convergence criteria
-        evaluated = _evaluation(N, population, demand, total_demand)
-        parents = _selection(evaluated)
+def _genetic_algorithm(start_pop: Population, iterations: int) -> Population:
+    pop = start_pop
+    i = 0
+    while i < iterations:  # or until some other convergence criteria
+        parents = _selection(pop)
         children = _evolution(parents)
-        plot_generation(children)
-        #_log_generation(children)
-        population = children
-    return population
-
-# HOW MANY PARENTS CHOSEN FOR PRODUCTION? CAN BE USER CHOICE
-#MUTATION OR not can be decided by probability
-# can also keep some parents
-# everything should be randomised
-# important to allow some of the not so fit route sets to survive to next generation as they can help make better solutions later
-# up to decicde if using 'elitism' or not
-
-### KEY FUNCTIONS ###
-
-def _initialise(N: int) -> Population:
-    """
-    Generate a random selection of chromosomes for the first generation.
-    """
-
-def _evaluation(N: int, pop: Population, demand: List[float], total_demand: float) -> Population:
-    """
-    Calculates the percentage of demand covered for each chromosome in the population.
-    """
-    for c in pop:
-        pop[c] = (fitness(N, c, demand) * 100) / total_demand
+        evaluated = _evaluation(children)
+        pop = evaluated
+        i = i + 1
     return pop
 
-def _selection():
+
+# HOW MANY PARENTS CHOSEN FOR PRODUCTION? CAN BE USER CHOICE
+# MUTATION OR not can be decided by probability
+# can also keep some parents
+# everything should be randomised
+# important to allow some of the not so fit route sets to survive to next generation
+#   as they can help make better solutions later
+# up to decicde if using 'elitism' or not
+
+# KEY FUNCTIONS
+
+
+def _selection(pop: Population) -> Population:
     """
-    Select parent chromosomes to breed the next generation, based on some survival probability.
+    Select parent networks to breed the next generation, based on some survival probability.
     """
+    return pop
+
+
+def _evolution(pop: Population) -> Population:
+    """
+    Create the next population.
+    """
+    return pop
+
 
 def _crossover():
     """
@@ -88,6 +77,7 @@ def _crossover():
     *if no shared vertex exists, this parent pair doesn't produce new child solutions
     """
 
+
 def _mutation():
     """
     Randomly add, remove or replace an edge
@@ -98,29 +88,55 @@ def _mutation():
     3. Randomly choose 1 edge (from possible choices in step 1) to [add|remove|replace]
     """
 
-def _evolution():
-    """
-    Create the next population.
-    """
 
-### HELPERS ###
+def _evaluation(pop: Population) -> Population:
+    """
+    Calculates the percentage of demand covered for each network in the population.
+    """
+    for c in pop:
+        pop[c] = (fitness(N, c, demand) * 100) / total_demand
+    return pop
 
-def fitness(N: int, chromosome: Chromosome, demand: List[float]) -> float:
+
+# HELPERS
+
+
+def fitness(N: int, nw: Network, demand: List[float]) -> float:
     acc_demand = 0.0
     for i in range(N):
-        if edge_included(i, chromosome):
+        if edge_included(i, nw):
             acc_demand += demand[i]
     return acc_demand
+
 
 def edge_included(pos: int, num: int) -> bool:
     mask = 1 << pos
     return (num & mask) != 0
 
+
 def _mutate():
     """
-    Randomly add, remove or replace an edge 
+    Randomly add, remove or replace an edge
     """
+    return
+
 
 def _reproduce():
+    return
 
-#def _log_generation():
+
+# VISUALISATION
+
+
+def plot_network():
+    """
+    Visualises a chromosome as a network, including the percentage of demand covered.
+    """
+
+
+def plot_generation():
+    """
+    Creates a scatter plot of a generation, where each blob is a chromosome (network),
+    the x axis is the total length of the network, and the y axis is the percentage of
+    total demand covered.
+    """
