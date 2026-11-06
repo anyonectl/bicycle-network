@@ -1,3 +1,4 @@
+# TODO SQL database with seed_points, demand_matrix, grid instead...
 from typing import Dict, List, Tuple
 
 from tqdm import tqdm
@@ -134,32 +135,45 @@ def generate_population(
     max_paths: int,
     max_nodes: int,
     seed_points: gpd.GeoDataFrame,
-    demand_matrix: pd.DataFrame,
+    demand_matrix: gpd.GeoDataFrame,
     rng: np.random.Generator,
     demand_type: str = "share",
-) -> gpd.GeoDataFrame:
+) -> Dict[int, dict]:
     """
-    Create population of n networks (route sets).
-    Each network will contain the starting nodes selected from the k nodes with highest demand.
+    Create a population of {n} connected networks, where each network
+    contains {max_paths} paths, and each path contains max {max_nodes}
+    nodes.
+
+    The starting nodes for each path in a network are randomly selected
+    from the {k} nodes with highest demand from {seed_points}. Nodes
+    with higher demand will have a higher probability of being chosen
+    as a starting node.
+
+    Parameters:
+        n (int): Number of networks to create
+        k (int): Number of nodes to use for the initial node set
+        max_paths (int): Max number of paths in each network
+        max_nodes (int): Max number of nodes in each path
+        seed_points (gpd.GeoDataFrame):
+        demand_matrix (gpd.GeoDataFrame):
+        rng (numpy.random.Generator):
+        demand_type (str): "share" or "absolute"
+
+    Returns:
+    A dictionary of dictionaries representing a population of networks.
+
     """
-    pop_list = []
+    population = {}
     pbar = tqdm(desc=f"Generate {n} connected networks. Loop iterations:", total=n * 15)
     i = 0
     while i < n:
         irs = generate_network(k, max_paths, max_nodes, seed_points, rng, demand_type)
-        graph = create_graph(irs)
-        if nx.is_connected(graph):
-            gdf = create_gdf(irs, seed_points)
-            gdf["network_id"] = i
-            nodes = list(graph)
-            gdf["demand_coverage"] = network_demand_coverage(nodes, gdf, demand_matrix)
-            # TODO: save_plot(gdf)
-            pop_list.append(gdf)
+        if is_connected(irs):
+            nw = create_dict(irs, demand_matrix)
+            population[i] = nw
             i = i + 1
         pbar.update(1)
-    pop_gdf = pd.concat(pop_list)
-    # TODO: save as geojson here?
-    return pop_gdf
+    return population
 
 
 def normalise_probabilities(df: pd.Series) -> np.ndarray:
@@ -170,42 +184,52 @@ def normalise_probabilities(df: pd.Series) -> np.ndarray:
     return p / np.sum(p, dtype=np.float64)
 
 
-def create_gdf(
-    irs: Dict[int, List[str]], seed_points: gpd.GeoDataFrame
-) -> gpd.GeoDataFrame:
+def create_dict(irs: Dict[int, List[str]], demand_matrix: gpd.GeoDataFrame) -> Dict:
     # Create dict for network
-    d = {
-        "path": [path for path in irs.values()],
-        "path_id": [path_id for path_id in irs],
-        "path_length": [len(path) for path in irs.values()],
-        # "start_id": [path[0] for _, path in irs.items()],
-        # "end_id": [path[-1] for _, path in irs.items()],
-        # 'demand_covered': [],
-        # 'geometry': []
+    # TODO: nw should be dict with demand_covered and paths as keys,
+    # where paths is a dict with path_id as keys (integers) and ordered cell_ids as values
+    node_list = get_nodes(irs)
+    nw = {
+        "demand_covered": network_demand_coverage(node_list, demand_matrix),
+        "paths": irs,
     }
+    return nw
 
-    # Create geometries
+
+def get_nodes(irs: Dict[int, List[str]]) -> list:
+    graph = get_graph(irs)
+    nodes = list(graph)
+    return nodes
+
+
+def get_geoms(nw: dict, seed_points: gpd.GeoDataFrame) -> List[LineString]:
+    """
+    Get the geometries matching seed point ids.
+
+    Parameters:
+        nw (dict):  Dictionary representing a single network with key "paths"
+                    containing a dictionary that maps path_id to ordered
+                    lists of cell_ids
+        seed_points (geopandas.GeoDataFrame):   Geodataframe with seed points
+
+    Returns:
+    A list of shapely.Point that can be used as geometries for seed points.
+    """
     id_to_centroid = seed_points.set_index("id")["geometry"].to_dict()
     geom = [
         LineString([id_to_centroid[point_id] for point_id in path])
-        for path in d["path"]
+        for path in nw["paths"]
     ]
-
-    # Create geodataframe with one row for each node
-    network_gdf = (
-        gpd.GeoDataFrame(d, geometry=geom, crs=None)
-        .explode("path")
-        .rename(columns={"path": "cell_id"})
-        .reset_index(drop=True)
-    )
-    network_gdf["node_position"] = network_gdf.groupby("path_id").cumcount()
-
-    return network_gdf
+    return geom
 
 
-def create_graph(irs: Dict[int, List[str]]) -> nx.Graph:
+def get_graph(irs: Dict[int, List[str]]) -> nx.Graph:
     graph = nx.Graph(get_edge_list(irs))
     return graph
+
+
+def is_connected(irs: Dict[int, List[str]]) -> bool:
+    return nx.is_connected(get_graph(irs))
 
 
 def get_edge_list(irs: Dict[int, List[str]]) -> List[Tuple[str, str]]:
@@ -218,14 +242,6 @@ def get_edge_list(irs: Dict[int, List[str]]) -> List[Tuple[str, str]]:
 
 def get_edges_in_path(path: List[str]) -> List[Tuple[str, str]]:
     return list(zip(path[:], path[1:]))
-
-
-def graph_connected(graph) -> bool:
-    """
-    Checks whether a graph/network is connected or not
-    Uses DFS
-    """
-    return False
 
 
 def connected_components(graph):

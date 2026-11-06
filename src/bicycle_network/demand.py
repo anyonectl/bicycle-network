@@ -57,7 +57,7 @@ def make_demand_weird(demand: np.ndarray) -> np.ndarray:
 
 
 def network_demand_coverage(
-    nodes_in_network: list, network: gdf, demand_matrix: pd.DataFrame
+    nodes_in_network: list, demand_matrix: pd.DataFrame
 ) -> float:
     total_demand = float(demand_matrix["demand"].sum())
     pairs_in_network = demand_matrix[["u", "v", "demand"]][
