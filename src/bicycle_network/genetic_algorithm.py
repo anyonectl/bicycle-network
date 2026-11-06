@@ -30,9 +30,10 @@ def _genetic_algorithm(start_pop: Population, iterations: int) -> Population:
     pop = start_pop
     i = 0
     while i < iterations:  # or until some other convergence criteria
-        parents = _selection(pop)
-        children = _evolution(parents)
-        evaluated = _evaluation(children)
+        parents = _reproduction(pop)
+        children = _crossover(parents)
+        mutated = _mutation(children)
+        evaluated = _evaluation(mutated)
         pop = evaluated
         i = i + 1
     return pop
@@ -49,7 +50,7 @@ def _genetic_algorithm(start_pop: Population, iterations: int) -> Population:
 # KEY FUNCTIONS
 
 
-def _selection(pop: Population) -> Population:
+def _reproduction(pop: Population) -> Population:
     """
     Select parent networks to breed the next generation, based on some survival probability.
     """
@@ -63,7 +64,7 @@ def _evolution(pop: Population) -> Population:
     return pop
 
 
-def _crossover():
+def _crossover(pop: Population) -> Population:
     """
     Swap genes (sequences of edges) between parent chromosomes to create two child chromosomes.
 
@@ -76,9 +77,10 @@ def _crossover():
 
     *if no shared vertex exists, this parent pair doesn't produce new child solutions
     """
+    return pop
 
 
-def _mutation():
+def _mutation(pop: Population) -> Population:
     """
     Randomly add, remove or replace an edge
 
@@ -87,6 +89,7 @@ def _mutation():
     2. Randomly choose 1 action from [add|remove|replace]
     3. Randomly choose 1 edge (from possible choices in step 1) to [add|remove|replace]
     """
+    return pop
 
 
 def _evaluation(pop: Population) -> Population:
