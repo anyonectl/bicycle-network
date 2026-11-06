@@ -21,8 +21,8 @@
 # ## Setup
 
 # %%
+import json
 import numpy as np
-import geopandas as gpd
 
 # import networkx as nx
 
@@ -36,15 +36,19 @@ RNG: np.random.Generator = np.random.default_rng(seed=SEED)
 ROOT = "../"
 PLOT_PATH = ROOT + "results/plots/"
 DATA_PATH = ROOT + "results/network-data/"
-EXT = ".geojson"
-INITIAL_POP_FILE = f"{DATA_PATH}start_pop_share_connected{EXT}"
+EXT = ".json"
+INITIAL_POP_FILE = f"{DATA_PATH}start_pop_abs_connected{EXT}"
 
 # %% [markdown]
 # ## Get initial population
 
 # %%
-start_pop_gdf = gpd.read_file(INITIAL_POP_FILE)
-print(start_pop_gdf.info())
-start_pop_gdf.head(20)
+with open(INITIAL_POP_FILE, "r") as fp:
+    start_pop = json.load(fp)
+
+# %%
+print(type(start_pop))
+print((start_pop))
+print(start_pop["0"])
 
 # %%
