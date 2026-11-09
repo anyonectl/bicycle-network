@@ -1,9 +1,13 @@
-from typing import Dict, List, TypedDict
+from typing import Dict, List, Tuple, TypedDict
+import numpy as np
 
 # Gene: a path consisting of several edges
 # Chromosome: a candidate solution (i.e. a network) consisting of genes
 # Population: a collection of candidate solutions
 # Generation: the population in a given iteration of the genetic algorithm
+
+SEED: int = 3581054352
+RNG: np.random.Generator = np.random.default_rng(seed=SEED)
 
 # TYPE ALIASES
 type Population = Dict[int, Network]
@@ -28,9 +32,10 @@ def run(start_pop: Population, iterations: int) -> Population:
 
 def _genetic_algorithm(start_pop: Population, iterations: int) -> Population:
     pop = start_pop
+    n = len(pop)
     i = 0
     while i < iterations:  # or until some other convergence criteria
-        parents = _reproduction(pop)
+        parents = _selection(n, pop)
         children = _crossover(parents)
         mutated = _mutation(children)
         evaluated = _evaluation(mutated)
@@ -50,9 +55,18 @@ def _genetic_algorithm(start_pop: Population, iterations: int) -> Population:
 # KEY FUNCTIONS
 
 
-def _reproduction(pop: Population) -> Population:
+def _selection(n: int, pop: Population) -> Population:
     """
-    Select parent networks to breed the next generation, based on some survival probability.
+    Selects the fittest networks from a population to breed the next generation.
+    Networks with higher demand have a higher probability of being chosen.
+    One network can be chosen several times.
+
+    Parameters:
+    n (int): The number of networks to choose for the mating pool.
+    pop (Population): The population of networks to choose parent networks from.
+
+    Returns:
+    A 'mating pool' population of {n} networks.
     """
     return pop
 
@@ -102,6 +116,61 @@ def _evaluation(pop: Population) -> Population:
 
 
 # HELPERS
+
+
+def _choose_parent_pair(pop: Population) -> Tuple[Network, Network]:
+    """
+    Randomly chooses two parent networks from the mating pool to be
+    used for inter-string crossover.
+
+    Params:
+    pop (Population): Mating pool to choose parent networks from.
+
+    Returns:
+    A pair of parent networks.
+    """
+
+
+def _choose_single_parent(pop: Population) -> Network:
+    """
+    Randomly chooses a single parent network from the mating pool to be
+    used for intra-string crossover.
+
+    Params:
+    pop (Population): Mating pool to choose parent network from.
+
+    Returns:
+    A single parent network.
+    """
+
+
+def _inter_crossover(parents: Tuple[Network, Network]) -> Tuple[Network, Network]:
+    """
+    Performs inter-string crossover by exchanging two complete paths
+    between two parent networks to create two child networks.
+
+    Params:
+    parents (Tuple[Network, Network]): Pair of parents to exchange paths between.
+
+    Returns:
+    A pair of child networks.
+    """
+    # CONNECTIVITY MUST BE ENFORCED
+
+
+def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
+    """
+    Performs intra-string crossover by exchanging path sections
+    between two paths in the same parent network to create two child
+    networks.
+
+    Params:
+    parent (Network): Parent network to exchange path sections in.
+
+    Returns:
+    A pair of child networks.
+    """
+    # CONNECTIVITY MUST BE ENFORCED
 
 
 def fitness(N: int, nw: Network, demand: List[float]) -> float:
