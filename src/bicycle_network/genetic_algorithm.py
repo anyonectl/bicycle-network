@@ -1,6 +1,7 @@
 from math import fsum
 from typing import Dict, List, Set, Tuple, TypedDict
 import numpy as np
+import bicycle_network.demand as dmnd
 
 # Gene: a path consisting of several edges
 # Chromosome: a candidate solution (i.e. a network) consisting of genes
@@ -23,25 +24,28 @@ class Network(TypedDict):
 # MAIN
 
 
-def run(start_pop: Population, iterations: int) -> Population:
-    return _genetic_algorithm(start_pop, iterations)
+def run(start_pop: Population, iterations: int, demand_matrix) -> Population:
+    return _genetic_algorithm(start_pop, iterations, demand_matrix)
     # should the last population be returned to the user, or something else?
 
 
 # ORCHESTRATOR
 
 
-def _genetic_algorithm(start_pop: Population, iterations: int) -> Population:
+def _genetic_algorithm(
+    start_pop: Population, iterations: int, demand_matrix
+) -> Population:
     pop = start_pop
     n = len(pop)
     i = 0
     while i < iterations:  # or until some other convergence criteria
         parents = _selection(n, pop)
         children = _crossover(n, parents)
-        mutated = _mutation(children)
-        evaluated = _evaluation(mutated)
+        # mutated = _mutation(children)
+        evaluated = _evaluation(children, demand_matrix)
         pop = evaluated
         i = i + 1
+        # TODO Log each network (demand_covered etc) for scatter plot later
     return pop
 
 
@@ -125,11 +129,12 @@ def _mutation(pop: Population) -> Population:
     return pop
 
 
-def _evaluation(pop: Population) -> Population:
+def _evaluation(pop: Population, demand_matrix) -> Population:
     """
-    Calculates the percentage of demand covered for each network in the population.
+    1. Calculate the percentage of demand covered for each network in the population.
+    2. Choose only the n fittest? (For now, let's just do this)
     """
-    return pop
+    return _recalculcate_fitness(pop, demand_matrix)
 
 
 # SELECTION HELPERS
@@ -338,6 +343,17 @@ def _mutate():
     Randomly add, remove or replace an edge
     """
     return
+
+
+# EVALUATION HELPERS
+
+
+def _recalculcate_fitness(pop: Population, demand_matrix) -> Population:
+    for nw in pop.values():
+        nw["demand_covered"] = dmnd.network_demand_coverage(
+            _get_node_set(nw), demand_matrix
+        )
+    return pop
 
 
 # OTHER HELPERS
