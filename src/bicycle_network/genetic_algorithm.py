@@ -69,12 +69,42 @@ def _selection(n: int, pop: Population) -> Population:
     Returns:
     A 'mating pool' population of {n} networks.
     """
-    demand_sum = fsum([nw.get("demand_covered") for nw in pop.values()])
+    selected_ids = _select_ids_overall(n, pop)
+    mating_pool: Population = {
+        new_id: pop[old_id] for new_id, old_id in enumerate(selected_ids)
+    }
+    return mating_pool
+
+
+def _sum_demand_coverage(pop: Population) -> float:
+    return fsum([nw.get("demand_covered") for nw in pop.values()])
+
+
+def _get_demand_shares(pop: Population) -> List[float]:
+    demand_sum = _sum_demand_coverage(pop)
     demand_shares = [nw.get("demand_covered") * 100 / demand_sum for nw in pop.values()]
+    return demand_shares
+
+
+def _get_normalised_demand_shares(pop: Population) -> np.ndarray:
+    demand_shares = _get_demand_shares(pop)
+    return _normalise(demand_shares)
+
+
+def _select_ids(n: int, pop: Population, demand_shares: np.ndarray) -> np.ndarray:
     nw_ids = [id for id in pop]
     selected_ids = RNG.choice(nw_ids, size=n, replace=True, p=demand_shares)
-    mating_pool: Population = {id: pop[id] for id in selected_ids}
-    return mating_pool
+    return selected_ids
+
+
+def _sort_ids(selected_ids: np.ndarray) -> List[int]:
+    return sorted(selected_ids.tolist())
+
+
+def _select_ids_overall(n: int, pop: Population) -> List[int]:
+    demand_shares = _get_normalised_demand_shares(pop)
+    selected_ids = _select_ids(n, pop, demand_shares)
+    return _sort_ids(selected_ids)
 
 
 def _evolution(pop: Population) -> Population:
@@ -112,78 +142,110 @@ def _mutation(pop: Population) -> Population:
     return pop
 
 
-def _evaluation(pop: Population) -> Population:
-    """
-    Calculates the percentage of demand covered for each network in the population.
-    """
-    for c in pop:
-        pop[c] = (fitness(N, c, demand) * 100) / total_demand
+def _normalise(ls: List[float]) -> np.ndarray:
+    arr = np.array(ls, dtype=np.float64)
+    sum = np.sum(arr, dtype=np.float64)
+    if sum == 0.0:
+        raise ZeroDivisionError
+    return arr / sum
+
+
+def json_to_pop(data) -> Population:
+    pop: Population = {
+        int(nw_id): {
+            "demand_covered": nw["demand_covered"],
+            "paths": {int(path_id): path for path_id, path in nw["paths"].items()},
+        }
+        for nw_id, nw in data.items()
+    }
     return pop
 
 
-# HELPERS
+# def _evaluation(pop: Population) -> Population:
+#     """
+#     Calculates the percentage of demand covered for each network in the population.
+#     """
+#     for c in pop:
+#         pop[c] = (fitness(N, c, demand) * 100) / total_demand
+#     return pop
 
 
-def _choose_parent_pair(pop: Population) -> Tuple[Network, Network]:
-    """
-    Randomly chooses two parent networks from the mating pool to be
-    used for inter-string crossover.
-
-    Params:
-    pop (Population): Mating pool to choose parent networks from.
-
-    Returns:
-    A pair of parent networks.
-    """
+# # HELPERS
 
 
-def _choose_single_parent(pop: Population) -> Network:
-    """
-    Randomly chooses a single parent network from the mating pool to be
-    used for intra-string crossover.
+# def _choose_parent_pair(pop: Population) -> Tuple[Network, Network]:
+#     """
+#     Randomly chooses two parent networks from the mating pool to be
+#     used for inter-string crossover.
 
-    Params:
-    pop (Population): Mating pool to choose parent network from.
+#     Params:
+#     pop (Population): Mating pool to choose parent networks from.
 
-    Returns:
-    A single parent network.
-    """
-
-
-def _inter_crossover(parents: Tuple[Network, Network]) -> Tuple[Network, Network]:
-    """
-    Performs inter-string crossover by exchanging two complete paths
-    between two parent networks to create two child networks.
-
-    Params:
-    parents (Tuple[Network, Network]): Pair of parents to exchange paths between.
-
-    Returns:
-    A pair of child networks.
-    """
-    # CONNECTIVITY MUST BE ENFORCED
+#     Returns:
+#     A pair of parent networks.
+#     """
 
 
-def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
-    """
-    Performs intra-string crossover by exchanging path sections
-    between two paths in the same parent network to create two child
-    networks.
+# def _choose_single_parent(pop: Population) -> Network:
+#     """
+#     Randomly chooses a single parent network from the mating pool to be
+#     used for intra-string crossover.
 
-    Params:
-    parent (Network): Parent network to exchange path sections in.
+#     Params:
+#     pop (Population): Mating pool to choose parent network from.
 
-    Returns:
-    A pair of child networks.
-    """
+#     Returns:
+#     A single parent network.
+#     """
 
 
-def fitness(N: int, nw: Network, demand: List[float]) -> float:
-    acc_demand = 0.0
-    for i in range(N):
-        if edge_included(i, nw):
-            acc_demand += demand[i]
-    return acc_demand
+# def _inter_crossover(parents: Tuple[Network, Network]) -> Tuple[Network, Network]:
+#     """
+#     Performs inter-string crossover by exchanging two complete paths
+#     between two parent networks to create two child networks.
+
+#     Params:
+#     parents (Tuple[Network, Network]): Pair of parents to exchange paths between.
+
+#     Returns:
+#     A pair of child networks.
+#     """
+#     # CONNECTIVITY MUST BE ENFORCED
+
+
+# def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
+#     """
+#     Performs intra-string crossover by exchanging path sections
+#     between two paths in the same parent network to create two child
+#     networks.
+
+#     Params:
+#     parent (Network): Parent network to exchange path sections in.
+
+#     Returns:
+#     A pair of child networks.
+#     """
+
+
+# def inter_intra_crossover(parents: Tuple[Network, Network]) -> Tuple[Network, Network]
+#     """
+#     Exchanges path sections from two paths with at least one shared node
+#     from two parent networks to create two child networks.
+
+#     Params:
+#     parents (Tuple[Network, Network]): Pair of parents to exchange path sections between.
+
+#     Returns:
+#     A pair of child networks.
+#     """
+
+
+# def fitness(N: int, nw: Network, demand: List[float]) -> float:
+#     acc_demand = 0.0
+#     for i in range(N):
+#         if edge_included(i, nw):
+#             acc_demand += demand[i]
+#     return acc_demand
 
 
 def edge_included(pos: int, num: int) -> bool:
