@@ -1,3 +1,4 @@
+from math import fsum
 from typing import Dict, List, Tuple, TypedDict
 import numpy as np
 
@@ -68,7 +69,12 @@ def _selection(n: int, pop: Population) -> Population:
     Returns:
     A 'mating pool' population of {n} networks.
     """
-    return pop
+    demand_sum = fsum([nw.get("demand_covered") for nw in pop.values()])
+    demand_shares = [nw.get("demand_covered") * 100 / demand_sum for nw in pop.values()]
+    nw_ids = [id for id in pop]
+    selected_ids = RNG.choice(nw_ids, size=n, replace=True, p=demand_shares)
+    mating_pool: Population = {id: pop[id] for id in selected_ids}
+    return mating_pool
 
 
 def _evolution(pop: Population) -> Population:
@@ -170,7 +176,6 @@ def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
     Returns:
     A pair of child networks.
     """
-    # CONNECTIVITY MUST BE ENFORCED
 
 
 def fitness(N: int, nw: Network, demand: List[float]) -> float:
