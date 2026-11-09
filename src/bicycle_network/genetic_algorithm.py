@@ -37,7 +37,7 @@ def _genetic_algorithm(start_pop: Population, iterations: int) -> Population:
     i = 0
     while i < iterations:  # or until some other convergence criteria
         parents = _selection(n, pop)
-        children = _crossover(parents)
+        children = _crossover(n, parents)
         mutated = _mutation(children)
         evaluated = _evaluation(mutated)
         pop = evaluated
@@ -132,7 +132,7 @@ def _evaluation(pop: Population) -> Population:
     return pop
 
 
-# HELPERS
+# SELECTION HELPERS
 
 
 def _sum_demand_coverage(pop: Population) -> float:
@@ -160,15 +160,7 @@ def _normalise(ls: List[float]) -> np.ndarray:
     return arr / sum
 
 
-def json_to_pop(data) -> Population:
-    pop: Population = {
-        int(nw_id): {
-            "demand_covered": nw["demand_covered"],
-            "paths": {int(path_id): path for path_id, path in nw["paths"].items()},
-        }
-        for nw_id, nw in data.items()
-    }
-    return pop
+# CROSSOVER HELPERS
 
 
 def _choose_parents(parent_ids: List[int]) -> Tuple[int, int]:
@@ -186,12 +178,12 @@ def _choose_parents(parent_ids: List[int]) -> Tuple[int, int]:
     return (chosen_ids[0], chosen_ids[1])
 
 
-def _choose_single_parent(pop: Population) -> Network:
+def _choose_single_parent(pop: Population) -> Network | None:
     """
     Randomly chooses a single parent network from the mating pool to be
     used for intra-string crossover.
 
-    Params:
+    Parameters:
     pop (Population): Mating pool to choose parent network from.
 
     Returns:
@@ -199,12 +191,14 @@ def _choose_single_parent(pop: Population) -> Network:
     """
 
 
-def _inter_crossover(parents: Tuple[Network, Network]) -> Tuple[Network, Network]:
+def _inter_crossover(
+    parents: Tuple[Network, Network],
+) -> Tuple[Network, Network] | None:
     """
     Performs inter-string crossover by exchanging two complete paths
     between two parent networks to create two child networks.
 
-    Params:
+    Parameters:
     parents (Tuple[Network, Network]): Pair of parents to exchange paths between.
 
     Returns:
@@ -213,13 +207,13 @@ def _inter_crossover(parents: Tuple[Network, Network]) -> Tuple[Network, Network
     # CONNECTIVITY MUST BE ENFORCED
 
 
-def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
+def _intra_crossover(parent: Network) -> Tuple[Network, Network] | None:
     """
     Performs intra-string crossover by exchanging path sections
     between two paths in the same parent network to create two child
     networks.
 
-    Params:
+    Parameters:
     parent (Network): Parent network to exchange path sections in.
 
     Returns:
@@ -262,29 +256,33 @@ def _inter_intra_crossover(
     # Exchange
     new_A, new_B = _exchange_path_sections(cut_idx_A, cut_idx_B, path_A, path_B)
 
-    # Put into networks
+    # Put new paths into networks
     parent_A["paths"][path_id_A] = new_A
     parent_B["paths"][path_id_B] = new_B
 
+    return (parent_A, parent_B)
 
-def _exchange_path_sections(
-    index_A: int, index_B: int, path_A: List[str], path_B: List[str]
-) -> Tuple[List[str], List[str]]:
+
+def _get_node_set(nw: Network) -> Set[str]:
+    return set().union(*nw["paths"].values())
+
+
+def _get_shared_nodes(nw_A, nw_B) -> Set[str] | None:
     """
-    Creates two new paths from two paths by exchanging sections at index.
+    Finds and returns the shared nodes between two networks.
 
     Parameters:
-    index_A (int): The index to cut in {path_A}
-    index_B (int): The index to cut in {path_B}
-    path_A (List[str]): First path to exchange sections
-    path_B (List[str]): Second path to exchange sections
+    nw_A (Network): First network.
+    nw_B (Network): Second network.
 
     Returns:
-    A tuple containing two new paths.
+    A set of shared nodes between the two networks if any exist, otherwise None.
     """
-    new_A = path_A[:index_A] + path_B[index_B:]
-    new_B = path_B[:index_B] + path_A[index_A:]
-    return (new_A, new_B)
+    # use set intersection
+    set_A = _get_node_set(nw_A)
+    set_B = _get_node_set(nw_B)
+    shared = set_A & set_B
+    return shared or None
 
 
 def _find_node(node: str, nw: Network) -> Tuple[int, int, List[str]]:
@@ -312,39 +310,27 @@ def _find_node(node: str, nw: Network) -> Tuple[int, int, List[str]]:
     return (node_index, path_id, path_list)
 
 
-def _get_shared_nodes(nw_A, nw_B) -> Set[str] | None:
+def _exchange_path_sections(
+    index_A: int, index_B: int, path_A: List[str], path_B: List[str]
+) -> Tuple[List[str], List[str]]:
     """
-    Finds and returns the shared nodes between two networks.
+    Creates two new paths from two paths by exchanging sections at index.
 
     Parameters:
-    nw_A (Network): First network.
-    nw_B (Network): Second network.
+    index_A (int): The index to cut in {path_A}
+    index_B (int): The index to cut in {path_B}
+    path_A (List[str]): First path to exchange sections
+    path_B (List[str]): Second path to exchange sections
 
     Returns:
-    A set of shared nodes between the two networks if any exist, otherwise None.
+    A tuple containing two new paths.
     """
-    # use set intersection
-    set_A = _get_node_set(nw_A)
-    set_B = _get_node_set(nw_B)
-    shared = set_A & set_B
-    return shared or None
+    new_A = path_A[:index_A] + path_B[index_B:]
+    new_B = path_B[:index_B] + path_A[index_A:]
+    return (new_A, new_B)
 
 
-def _get_node_set(nw: Network) -> Set[str]:
-    return set().union(*nw["paths"].values())
-
-
-def fitness(N: int, nw: Network, demand: List[float]) -> float:
-    acc_demand = 0.0
-    for i in range(N):
-        if edge_included(i, nw):
-            acc_demand += demand[i]
-    return acc_demand
-
-
-def edge_included(pos: int, num: int) -> bool:
-    mask = 1 << pos
-    return (num & mask) != 0
+# MUTATION HELPERS
 
 
 def _mutate():
@@ -354,8 +340,18 @@ def _mutate():
     return
 
 
-def _reproduce():
-    return
+# OTHER HELPERS
+
+
+def json_to_pop(data) -> Population:
+    pop: Population = {
+        int(nw_id): {
+            "demand_covered": nw["demand_covered"],
+            "paths": {int(path_id): path for path_id, path in nw["paths"].items()},
+        }
+        for nw_id, nw in data.items()
+    }
+    return pop
 
 
 # VISUALISATION
