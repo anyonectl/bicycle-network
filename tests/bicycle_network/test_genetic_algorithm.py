@@ -182,7 +182,7 @@ def test_sum_demand_coverage_returns_correct_sum(small_pop):
     assert sum == 10.0
 
 
-def test_get_probabilities_returns_float_list(small_pop):
+def test_get_probabilities_returns_float_array(small_pop):
     expected = np.array([0.3, 0.2, 0.5])
     actual = ga._get_probabilities(small_pop)
     np.testing.assert_allclose(actual, expected)
