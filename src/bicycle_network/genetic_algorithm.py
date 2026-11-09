@@ -1,5 +1,5 @@
 from math import fsum
-from typing import Dict, List, Tuple, TypedDict
+from typing import Dict, List, Set, Tuple, TypedDict
 import numpy as np
 
 # Gene: a path consisting of several edges
@@ -76,6 +76,76 @@ def _selection(n: int, pop: Population) -> Population:
     return mating_pool
 
 
+def _evolution(pop: Population) -> Population:
+    """
+    Create the next population.
+    """
+    return pop
+
+
+def _crossover(n: int, mating_pool: Population) -> Population:
+    """
+    Creates a child population by randomly choosing pairs of parent networks from
+    the mating pool and performing crossover on them.
+
+    Parameters:
+    n (int): Number of child networks to create.
+    mating_pool (Population): Population of selected parent networks to use for mating.
+
+    Returns:
+    A population of child networks.
+
+    Swap genes (sequences of edges) between parent chromosomes to create two child chromosomes.
+
+    For each parent pair (inspired by Mesbah 2012):
+    1. Assume that each parent is a connected network
+    2. Determine shared vertices (edges) between the parents
+    3. Randomly choose 1 shared vertex*
+    4. Swap all edges that precede the selected shared vertex
+    5. This produces 2 child solutions that are both connected
+
+    *if no shared vertex exists, this parent pair doesn't produce new child solutions
+    """
+    parent_ids = list(mating_pool.keys())
+    pop: Population = {}
+    i = 0
+    while i < n:
+        id_A, id_B = _choose_parents(parent_ids)
+        parent_A = mating_pool[id_A]
+        parent_B = mating_pool[id_B]
+        shared_nodes = _get_shared_nodes(parent_A, parent_B)
+        if shared_nodes is None:
+            continue
+        # remove parents from mating_pool? maybe not?
+        child_A, child_B = _inter_intra_crossover(parent_A, parent_B)
+        pop[i] = child_A
+        pop[i + 1] = child_B
+        i = i + 2
+    return pop
+
+
+def _mutation(pop: Population) -> Population:
+    """
+    Randomly add, remove or replace an edge
+
+    For each ??? (inspired by Mesbah 2012):
+    1. Determine the possible edge additions and removals that ensure connectedness
+    2. Randomly choose 1 action from [add|remove|replace]
+    3. Randomly choose 1 edge (from possible choices in step 1) to [add|remove|replace]
+    """
+    return pop
+
+
+def _evaluation(pop: Population) -> Population:
+    """
+    Calculates the percentage of demand covered for each network in the population.
+    """
+    return pop
+
+
+# HELPERS
+
+
 def _sum_demand_coverage(pop: Population) -> float:
     return fsum([nw.get("demand_covered") for nw in pop.values()])
 
@@ -91,41 +161,6 @@ def _select_ids(n: int, pop: Population) -> List[int]:
     nw_ids = [id for id in pop]
     selected_ids = RNG.choice(nw_ids, size=n, replace=True, p=demand_shares)
     return selected_ids.tolist()
-
-
-def _evolution(pop: Population) -> Population:
-    """
-    Create the next population.
-    """
-    return pop
-
-
-def _crossover(pop: Population) -> Population:
-    """
-    Swap genes (sequences of edges) between parent chromosomes to create two child chromosomes.
-
-    For each parent pair (inspired by Mesbah 2012):
-    1. Assume that each parent is a connected network
-    2. Determine shared vertices (edges) between the parents
-    3. Randomly choose 1 shared vertex*
-    4. Swap all edges that precede the selected shared vertex
-    5. This produces 2 child solutions that are both connected
-
-    *if no shared vertex exists, this parent pair doesn't produce new child solutions
-    """
-    return pop
-
-
-def _mutation(pop: Population) -> Population:
-    """
-    Randomly add, remove or replace an edge
-
-    For each ??? (inspired by Mesbah 2012):
-    1. Determine the possible edge additions and removals that ensure connectedness
-    2. Randomly choose 1 action from [add|remove|replace]
-    3. Randomly choose 1 edge (from possible choices in step 1) to [add|remove|replace]
-    """
-    return pop
 
 
 def _normalise(ls: List[float]) -> np.ndarray:
@@ -147,91 +182,107 @@ def json_to_pop(data) -> Population:
     return pop
 
 
-# def _evaluation(pop: Population) -> Population:
-#     """
-#     Calculates the percentage of demand covered for each network in the population.
-#     """
-#     for c in pop:
-#         pop[c] = (fitness(N, c, demand) * 100) / total_demand
-#     return pop
+def _choose_parents(parent_ids: List[int]) -> Tuple[int, int]:
+    """
+    Randomly chooses two ids of parent networks from the mating pool to be
+    used for crossover.
+
+    Params:
+    pop (Population): Mating pool to choose parent networks from.
+
+    Returns:
+    A pair of network ids pointing to the chosen parent networks in {pop}.
+    """
+    chosen_ids = RNG.choice(parent_ids, size=2, replace=False)
+    return (chosen_ids[0], chosen_ids[1])
 
 
-# # HELPERS
+def _choose_single_parent(pop: Population) -> Network:
+    """
+    Randomly chooses a single parent network from the mating pool to be
+    used for intra-string crossover.
+
+    Params:
+    pop (Population): Mating pool to choose parent network from.
+
+    Returns:
+    A single parent network.
+    """
 
 
-# def _choose_parent_pair(pop: Population) -> Tuple[Network, Network]:
-#     """
-#     Randomly chooses two parent networks from the mating pool to be
-#     used for inter-string crossover.
+def _inter_crossover(parents: Tuple[Network, Network]) -> Tuple[Network, Network]:
+    """
+    Performs inter-string crossover by exchanging two complete paths
+    between two parent networks to create two child networks.
 
-#     Params:
-#     pop (Population): Mating pool to choose parent networks from.
+    Params:
+    parents (Tuple[Network, Network]): Pair of parents to exchange paths between.
 
-#     Returns:
-#     A pair of parent networks.
-#     """
-
-
-# def _choose_single_parent(pop: Population) -> Network:
-#     """
-#     Randomly chooses a single parent network from the mating pool to be
-#     used for intra-string crossover.
-
-#     Params:
-#     pop (Population): Mating pool to choose parent network from.
-
-#     Returns:
-#     A single parent network.
-#     """
+    Returns:
+    A pair of child networks.
+    """
+    # CONNECTIVITY MUST BE ENFORCED
 
 
-# def _inter_crossover(parents: Tuple[Network, Network]) -> Tuple[Network, Network]:
-#     """
-#     Performs inter-string crossover by exchanging two complete paths
-#     between two parent networks to create two child networks.
+def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
+    """
+    Performs intra-string crossover by exchanging path sections
+    between two paths in the same parent network to create two child
+    networks.
 
-#     Params:
-#     parents (Tuple[Network, Network]): Pair of parents to exchange paths between.
+    Params:
+    parent (Network): Parent network to exchange path sections in.
 
-#     Returns:
-#     A pair of child networks.
-#     """
-#     # CONNECTIVITY MUST BE ENFORCED
-
-
-# def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
-#     """
-#     Performs intra-string crossover by exchanging path sections
-#     between two paths in the same parent network to create two child
-#     networks.
-
-#     Params:
-#     parent (Network): Parent network to exchange path sections in.
-
-#     Returns:
-#     A pair of child networks.
-#     """
+    Returns:
+    A pair of child networks.
+    """
 
 
-# def inter_intra_crossover(parents: Tuple[Network, Network]) -> Tuple[Network, Network]
-#     """
-#     Exchanges path sections from two paths with at least one shared node
-#     from two parent networks to create two child networks.
+def _inter_intra_crossover(
+    parent_A: Network, parent_B: Network
+) -> Tuple[Network, Network]:
+    """
+    Exchanges path sections from two paths with at least one shared node
+    from two parent networks to create two child networks. Assumes that
+    {parent_A} and {parent_B} has at least one shared node.
 
-#     Params:
-#     parents (Tuple[Network, Network]): Pair of parents to exchange path sections between.
+    Parameters:
+    parent A (Network): First parent network.
+    parent B (Network): Second parent network.
 
-#     Returns:
-#     A pair of child networks.
-#     """
+    Returns:
+    A pair of child networks.
+    """
 
 
-# def fitness(N: int, nw: Network, demand: List[float]) -> float:
-#     acc_demand = 0.0
-#     for i in range(N):
-#         if edge_included(i, nw):
-#             acc_demand += demand[i]
-#     return acc_demand
+def _get_shared_nodes(nw_A, nw_B) -> Set[str] | None:
+    """
+    Finds and returns the shared nodes between two networks.
+
+    Parameters:
+    nw_A (Network): First network.
+    nw_B (Network): Second network.
+
+    Returns:
+    A set of shared nodes between the two networks if any exist, otherwise None.
+    """
+    # use set intersection
+    set_A = _get_node_set(nw_A)
+    set_B = _get_node_set(nw_B)
+    shared = set_A & set_B
+    return shared or None
+
+
+def _get_node_set(nw: Network) -> Set[str]:
+    return set().union(*nw["paths"].values())
+
+
+def fitness(N: int, nw: Network, demand: List[float]) -> float:
+    acc_demand = 0.0
+    for i in range(N):
+        if edge_included(i, nw):
+            acc_demand += demand[i]
+    return acc_demand
 
 
 def edge_included(pos: int, num: int) -> bool:
