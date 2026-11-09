@@ -94,17 +94,6 @@ def _crossover(n: int, mating_pool: Population) -> Population:
 
     Returns:
     A population of child networks.
-
-    Swap genes (sequences of edges) between parent chromosomes to create two child chromosomes.
-
-    For each parent pair (inspired by Mesbah 2012):
-    1. Assume that each parent is a connected network
-    2. Determine shared vertices (edges) between the parents
-    3. Randomly choose 1 shared vertex*
-    4. Swap all edges that precede the selected shared vertex
-    5. This produces 2 child solutions that are both connected
-
-    *if no shared vertex exists, this parent pair doesn't produce new child solutions
     """
     parent_ids = list(mating_pool.keys())
     pop: Population = {}
@@ -117,7 +106,7 @@ def _crossover(n: int, mating_pool: Population) -> Population:
         if shared_nodes is None:
             continue
         # remove parents from mating_pool? maybe not?
-        child_A, child_B = _inter_intra_crossover(parent_A, parent_B)
+        child_A, child_B = _inter_intra_crossover(parent_A, parent_B, shared_nodes)
         pop[i] = child_A
         pop[i + 1] = child_B
         i = i + 2
@@ -239,20 +228,60 @@ def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
 
 
 def _inter_intra_crossover(
-    parent_A: Network, parent_B: Network
+    parent_A: Network, parent_B: Network, shared_nodes: Set[str]
 ) -> Tuple[Network, Network]:
     """
     Exchanges path sections from two paths with at least one shared node
-    from two parent networks to create two child networks. Assumes that
-    {parent_A} and {parent_B} has at least one shared node.
+    from two parent networks to create two child networks.
+    Assumes that {parent_A} and {parent_B} has at least one shared node.
 
     Parameters:
     parent A (Network): First parent network.
     parent B (Network): Second parent network.
+    shared_nodes (set): Set of node ids shared by the two networks.
 
     Returns:
     A pair of child networks.
+
+    For each parent pair (inspired by Mesbah 2012):
+    1. Assume that each parent is a connected network
+    2. Determine shared vertices (edges) between the parents
+    3. Randomly choose 1 shared vertex*
+    4. Swap all edges that precede the selected shared vertex
+    5. This produces 2 child solutions that are both connected
+
+    *if no shared vertex exists, this parent pair doesn't produce new child solutions
     """
+    # Randomly choose 1 shared vertex
+    cut_node = str(RNG.choice(list(shared_nodes)))
+
+    # Find the path that cut_node is in (naive method)
+    # nw["paths"][0] ... search
+
+
+def _find_node(node: str, nw: Network) -> Tuple[int, int, List[str]]:
+    """
+    Finds {node} and its path in {nw}.
+    Only gets the first occurrence of the node.
+    Naive method.
+
+    Parameters:
+    node (str): The node to search for.
+    nw (Network): The network to search in.
+
+    Returns:
+    A tuple containing 1) the node's index in its path, 1) the path id, 2) the path itself.
+    """
+    node_index = -1
+    path_id = -1
+    path_list = []
+    for i, path in nw["paths"].items():
+        if node in path:
+            node_index = path.index(node)
+            path_id = i
+            path_list = path
+            break
+    return (node_index, path_id, path_list)
 
 
 def _get_shared_nodes(nw_A, nw_B) -> Set[str] | None:
