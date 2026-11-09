@@ -255,8 +255,36 @@ def _inter_intra_crossover(
     # Randomly choose 1 shared vertex
     cut_node = str(RNG.choice(list(shared_nodes)))
 
-    # Find the path that cut_node is in (naive method)
-    # nw["paths"][0] ... search
+    # Find the paths that cut_node is in (naive method)
+    cut_idx_A, path_id_A, path_A = _find_node(cut_node, parent_A)
+    cut_idx_B, path_id_B, path_B = _find_node(cut_node, parent_B)
+
+    # Exchange
+    new_A, new_B = _exchange_path_sections(cut_idx_A, cut_idx_B, path_A, path_B)
+
+    # Put into networks
+    parent_A["paths"][path_id_A] = new_A
+    parent_B["paths"][path_id_B] = new_B
+
+
+def _exchange_path_sections(
+    index_A: int, index_B: int, path_A: List[str], path_B: List[str]
+) -> Tuple[List[str], List[str]]:
+    """
+    Creates two new paths from two paths by exchanging sections at index.
+
+    Parameters:
+    index_A (int): The index to cut in {path_A}
+    index_B (int): The index to cut in {path_B}
+    path_A (List[str]): First path to exchange sections
+    path_B (List[str]): Second path to exchange sections
+
+    Returns:
+    A tuple containing two new paths.
+    """
+    new_A = path_A[:index_A] + path_B[index_B:]
+    new_B = path_B[:index_B] + path_A[index_A:]
+    return (new_A, new_B)
 
 
 def _find_node(node: str, nw: Network) -> Tuple[int, int, List[str]]:
