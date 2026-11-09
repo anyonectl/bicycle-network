@@ -2,6 +2,7 @@ from math import fsum
 from typing import Dict, List, Set, Tuple, TypedDict
 import numpy as np
 import bicycle_network.demand as dmnd
+import bicycle_network.plot as bcnwplt
 
 # Gene: a path consisting of several edges
 # Chromosome: a candidate solution (i.e. a network) consisting of genes
@@ -24,8 +25,10 @@ class Network(TypedDict):
 # MAIN
 
 
-def run(start_pop: Population, iterations: int, demand_matrix) -> Population:
-    return _genetic_algorithm(start_pop, iterations, demand_matrix)
+def run(
+    start_pop: Population, iterations: int, demand_matrix, seed_points, grid
+) -> Population:
+    return _genetic_algorithm(start_pop, iterations, demand_matrix, seed_points, grid)
     # should the last population be returned to the user, or something else?
 
 
@@ -33,7 +36,7 @@ def run(start_pop: Population, iterations: int, demand_matrix) -> Population:
 
 
 def _genetic_algorithm(
-    start_pop: Population, iterations: int, demand_matrix
+    start_pop: Population, iterations: int, demand_matrix, seed_points, grid
 ) -> Population:
     pop = start_pop
     n = len(pop)
@@ -44,6 +47,15 @@ def _genetic_algorithm(
         # mutated = _mutation(children)
         evaluated = _evaluation(children, demand_matrix)
         pop = evaluated
+        bcnwplt.plot_population_dict(
+            pop,
+            seed_points,
+            grid,
+            demand_type="absolute",
+            save=True,
+            filename="pop",
+            gen=i,
+        )
         i = i + 1
         # TODO Log each network (demand_covered etc) for scatter plot later
     return pop
@@ -132,7 +144,7 @@ def _mutation(pop: Population) -> Population:
 def _evaluation(pop: Population, demand_matrix) -> Population:
     """
     1. Calculate the percentage of demand covered for each network in the population.
-    2. Choose only the n fittest? (For now, let's just do this)
+    2. Choose only the n fittest? (Not now - For now, let's just do the above)
     """
     return _recalculcate_fitness(pop, demand_matrix)
 
