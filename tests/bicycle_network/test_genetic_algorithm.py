@@ -1,7 +1,7 @@
+import numpy as np
 import pytest
 from pathlib import Path
 import json
-import numpy as np
 import bicycle_network.genetic_algorithm as ga
 
 
@@ -182,42 +182,7 @@ def test_sum_demand_coverage_returns_correct_sum(small_pop):
     assert sum == 10.0
 
 
-def test_get_demand_shares_returns_float_list(small_pop):
-    expected = [3.0 * 100 / 10.0, 2.0 * 100 / 10.0, 5.0 * 100 / 10.0]
-    actual = ga._get_demand_shares(small_pop)
-    assert actual == expected
-
-
-def test_get_normalised_demand_shares(small_pop):
+def test_get_probabilities_returns_float_list(small_pop):
     expected = np.array([0.3, 0.2, 0.5])
-    actual = ga._get_normalised_demand_shares(small_pop)
+    actual = ga._get_probabilities(small_pop)
     np.testing.assert_allclose(actual, expected)
-
-
-def test_get_normalised_demand_shares_sum_equals_one(small_pop):
-    expected = 1.0
-    arr = ga._get_normalised_demand_shares(small_pop)
-    actual = arr.sum()
-    assert actual == expected
-
-
-def test_select_ids_returns_n_ids(small_pop):
-    demand_shares = np.array([0.3, 0.2, 0.5])
-    two_ids = ga._select_ids(2, small_pop, demand_shares)
-    three_ids = ga._select_ids(3, small_pop, demand_shares)
-    four_ids = ga._select_ids(4, small_pop, demand_shares)
-    assert len(two_ids) == 2
-    assert len(three_ids) == 3
-    assert len(four_ids) == 4
-
-
-def test_sort_ids_returns_n_ids(small_pop):
-    two_selected_ids = ga._select_ids(2, small_pop, np.array([0.3, 0.2, 0.5]))
-    three_selected_ids = ga._select_ids(3, small_pop, np.array([0.3, 0.2, 0.5]))
-    four_selected_ids = ga._select_ids(4, small_pop, np.array([0.3, 0.2, 0.5]))
-    two_ids = ga._sort_ids(two_selected_ids)
-    three_ids = ga._sort_ids(three_selected_ids)
-    four_ids = ga._sort_ids(four_selected_ids)
-    assert len(two_ids) == 2
-    assert len(three_ids) == 3
-    assert len(four_ids) == 4

@@ -69,7 +69,7 @@ def _selection(n: int, pop: Population) -> Population:
     Returns:
     A 'mating pool' population of {n} networks.
     """
-    selected_ids = _select_ids_overall(n, pop)
+    selected_ids = _select_ids(n, pop)
     mating_pool: Population = {
         new_id: pop[old_id] for new_id, old_id in enumerate(selected_ids)
     }
@@ -80,31 +80,17 @@ def _sum_demand_coverage(pop: Population) -> float:
     return fsum([nw.get("demand_covered") for nw in pop.values()])
 
 
-def _get_demand_shares(pop: Population) -> List[float]:
+def _get_probabilities(pop: Population) -> np.ndarray:
     demand_sum = _sum_demand_coverage(pop)
     demand_shares = [nw.get("demand_covered") * 100 / demand_sum for nw in pop.values()]
-    return demand_shares
-
-
-def _get_normalised_demand_shares(pop: Population) -> np.ndarray:
-    demand_shares = _get_demand_shares(pop)
     return _normalise(demand_shares)
 
 
-def _select_ids(n: int, pop: Population, demand_shares: np.ndarray) -> np.ndarray:
+def _select_ids(n: int, pop: Population) -> List[int]:
+    demand_shares = _get_probabilities(pop)
     nw_ids = [id for id in pop]
     selected_ids = RNG.choice(nw_ids, size=n, replace=True, p=demand_shares)
-    return selected_ids
-
-
-def _sort_ids(selected_ids: np.ndarray) -> List[int]:
-    return sorted(selected_ids.tolist())
-
-
-def _select_ids_overall(n: int, pop: Population) -> List[int]:
-    demand_shares = _get_normalised_demand_shares(pop)
-    selected_ids = _select_ids(n, pop, demand_shares)
-    return _sort_ids(selected_ids)
+    return selected_ids.tolist()
 
 
 def _evolution(pop: Population) -> Population:
