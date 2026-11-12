@@ -52,7 +52,7 @@ def _genetic_algorithm(
             seed_points,
             grid,
             demand_type="absolute",
-            save=True,
+            save=False,
             filename="pop",
             gen=i,
         )
@@ -192,7 +192,9 @@ def _choose_parents(parent_ids: List[int]) -> Tuple[int, int]:
     A pair of network ids pointing to the chosen parent networks in {pop}.
     """
     chosen_ids = RNG.choice(parent_ids, size=2, replace=False)
-    return (chosen_ids[0], chosen_ids[1])
+    a = int(chosen_ids[0])
+    b = int(chosen_ids[1])
+    return a, b
 
 
 def _choose_single_parent(pop: Population) -> Network | None:
