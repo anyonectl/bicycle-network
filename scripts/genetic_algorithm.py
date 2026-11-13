@@ -91,9 +91,20 @@ bcnwplt.plot_population_dict(
     seed_points,
     grid,
     demand_type="absolute",
-    save=False,
+    save=True,
     output_path=PLOT_PATH,
-    filename="end_pop",
-    title="",
+    filename="finalpop",
     gen=-1,
 )
+
+# %%
+print(type(final_pop))
+print(final_pop)
+print(final_pop[0])
+
+# %%
+# filename = "final_pop_261109"
+# with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
+#     json.dump(final_pop, json_file, indent=4)
+
+# %%
