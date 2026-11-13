@@ -67,7 +67,7 @@ def _genetic_algorithm(
             seed_points,
             grid,
             demand_type="absolute",
-            save=True,
+            save=False,
             filename="pop",
             gen=i,
         )
@@ -128,17 +128,18 @@ def _crossover(n: int, mating_pool: Population) -> Population:
     A population of child networks.
     """
     child_pop: Population = {}
+    parent_ids = list(mating_pool.keys())
     i = 0
     while i < n:
-        parent_ids = list(mating_pool.keys())
+        # parent_ids = list(mating_pool.keys())
         id_A, id_B = _choose_parents(parent_ids)
         parent_A = mating_pool[id_A]
         parent_B = mating_pool[id_B]
         shared_nodes = _get_shared_nodes(parent_A, parent_B)
         if shared_nodes is None:
             continue
-        remove_A, remove_B = mating_pool.pop(id_A), mating_pool.pop(id_B)
-        assert remove_A == parent_A, remove_B == parent_B
+        # remove_A, remove_B = mating_pool.pop(id_A), mating_pool.pop(id_B)
+        # assert remove_A == parent_A, remove_B == parent_B
         child_A, child_B = _inter_intra_crossover(parent_A, parent_B, shared_nodes)
         assert id(child_A) != id(parent_A)
         assert id(child_B) != id(parent_B)
