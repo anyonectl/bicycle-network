@@ -41,12 +41,17 @@ def _genetic_algorithm(
     pop = start_pop
     n = len(pop)
     i = 0
+    assert id(pop) == id(start_pop)
     while i < iterations:  # or until some other convergence criteria
         parents = _selection(n, pop)
+        assert id(parents) != id(pop)
         children = _crossover(n, parents)
+        assert id(children) != id(parents)
         # mutated = _mutation(children)
         evaluated = _evaluation(children, demand_matrix)
+        assert id(evaluated) != id(children)
         pop = evaluated
+        assert id(pop) != id(start_pop)
         bcnwplt.plot_population_dict(
             pop,
             seed_points,
@@ -89,6 +94,7 @@ def _selection(n: int, pop: Population) -> Population:
     mating_pool: Population = {
         new_id: pop[old_id] for new_id, old_id in enumerate(selected_ids)
     }
+    assert id(mating_pool) != id(pop)
     return mating_pool
 
 
@@ -111,7 +117,7 @@ def _crossover(n: int, mating_pool: Population) -> Population:
     Returns:
     A population of child networks.
     """
-    pop: Population = {}
+    child_pop: Population = {}
     i = 0
     while i < n:
         parent_ids = list(mating_pool.keys())
@@ -121,14 +127,19 @@ def _crossover(n: int, mating_pool: Population) -> Population:
         shared_nodes = _get_shared_nodes(parent_A, parent_B)
         if shared_nodes is None:
             continue
-        # remove parents from mating_pool? maybe not? maybe yes
         remove_A, remove_B = mating_pool.pop(id_A), mating_pool.pop(id_B)
         assert remove_A == parent_A, remove_B == parent_B
         child_A, child_B = _inter_intra_crossover(parent_A, parent_B, shared_nodes)
-        pop[i] = child_A
-        pop[i + 1] = child_B
+        assert id(child_A) != id(
+            parent_A
+        )  # this is the issue I think! How to avoid changing parent?
+        assert id(child_B) != id(
+            parent_B
+        )  # this is the issue I think! How to avoid changing parent?
+        child_pop[i] = child_A
+        child_pop[i + 1] = child_B
         i = i + 2
-    return pop
+    return child_pop
 
 
 def _mutation(pop: Population) -> Population:
@@ -273,13 +284,19 @@ def _inter_intra_crossover(
     # Find the paths that cut_node is in (naive method)
     cut_idx_A, path_id_A, path_A = _find_node(cut_node, parent_A)
     cut_idx_B, path_id_B, path_B = _find_node(cut_node, parent_B)
+    assert parent_A["paths"][path_id_A] == path_A, (
+        parent_B["paths"][path_id_A] == path_B
+    )
 
     # Exchange
     new_A, new_B = _exchange_path_sections(cut_idx_A, cut_idx_B, path_A, path_B)
+    assert new_A != path_A, new_B != path_B
 
     # Put new paths into networks
+
     parent_A["paths"][path_id_A] = new_A
     parent_B["paths"][path_id_B] = new_B
+    assert parent_A["paths"][path_id_A] == new_A, parent_B["paths"][path_id_A] == new_B
 
     return (parent_A, parent_B)
 
