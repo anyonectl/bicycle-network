@@ -4,6 +4,16 @@ from matplotlib import pyplot as plt
 from matplotlib import colormaps as mplcm
 from geopandas import GeoDataFrame as gdf
 from shapely import LineString
+from datetime import datetime as dt
+
+
+def current_time() -> str:
+    year = str(dt.now().year)[2:]
+    month = dt.now().month
+    date = dt.now().day
+    hour = dt.now().hour
+    min = dt.now().minute
+    return f"{year}{month}{date}{hour}{min}"
 
 
 def plot_population_gdf(
@@ -106,9 +116,8 @@ def plot_population_dict(
 
     if save:
         gen_str = f"gen{gen}"
-        title_str = f"{title}_"
         plt.savefig(
-            f"{output_path}{filename}_{title_str}{gen_str}.png",
+            f"{output_path}{filename}_{gen_str}_{current_time()}.png",
             dpi=300,
             bbox_inches="tight",
         )
