@@ -37,9 +37,8 @@ def copy_network(original: Network) -> Network:
 
 def run(
     start_pop: Population, iterations: int, demand_matrix, seed_points, grid
-) -> Population:
+) -> Dict[int, Population]:
     return _genetic_algorithm(start_pop, iterations, demand_matrix, seed_points, grid)
-    # should the last population be returned to the user, or something else?
 
 
 # ORCHESTRATOR
@@ -47,10 +46,11 @@ def run(
 
 def _genetic_algorithm(
     start_pop: Population, iterations: int, demand_matrix, seed_points, grid
-) -> Population:
+) -> Dict[int, Population]:
     pop = start_pop
     n = len(pop)
     i = 0
+    gens = {}
     assert id(pop) == id(start_pop)
     while i < iterations:  # or until some other convergence criteria
         parents = _selection(n, pop)
@@ -62,18 +62,19 @@ def _genetic_algorithm(
         # assert id(evaluated) != id(children) # this fails, why? demand should be updated
         pop = evaluated
         assert id(pop) != id(start_pop)
-        bcnwplt.plot_population_dict(
-            pop,
-            seed_points,
-            grid,
-            demand_type="absolute",
-            save=False,
-            filename="pop",
-            gen=i,
-        )
+        # TODO Move plotting out of this module
+        # bcnwplt.plot_population_dict(
+        #     pop,
+        #     seed_points,
+        #     grid,
+        #     demand_type="absolute",
+        #     save=False,
+        #     filename="pop",
+        #     gen=i,
+        # )
+        gens[i] = pop
         i = i + 1
-        # TODO Log each network (demand_covered etc) for scatter plot later
-    return pop
+    return gens
 
 
 # HOW MANY PARENTS CHOSEN FOR PRODUCTION? CAN BE USER CHOICE

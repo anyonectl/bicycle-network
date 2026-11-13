@@ -83,7 +83,11 @@ bcnwplt.plot_population_dict(
 # ## Run GA
 
 # %%
-final_pop = ga.run(start_pop, 10, demand_matrix, seed_points, grid)
+generations = ga.run(start_pop, 10, demand_matrix, seed_points, grid)
+
+# %%
+n_gens = len(generations)
+final_pop = generations[n_gens - 1]
 
 # %%
 bcnwplt.plot_population_dict(
@@ -91,10 +95,10 @@ bcnwplt.plot_population_dict(
     seed_points,
     grid,
     demand_type="absolute",
-    save=True,
+    save=False,
     output_path=PLOT_PATH,
     filename="finalpop",
-    gen=-1,
+    gen=n_gens,
 )
 
 # %%
@@ -103,8 +107,6 @@ print(final_pop)
 print(final_pop[0])
 
 # %%
-# filename = "final_pop_261109"
-# with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
-#     json.dump(final_pop, json_file, indent=4)
-
-# %%
+filename = "generations_261113"
+with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
+    json.dump(generations, json_file, indent=4)
