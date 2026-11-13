@@ -83,7 +83,11 @@ def plot_population_dict(
         seed_points["geometry"].plot(ax=ax, color="black", markersize=1)
 
         for j, (path_id, path) in enumerate(nw["paths"].items()):
-            line = LineString([id_to_centroid[point_id] for point_id in path])
+            coords = [id_to_centroid[point_id] for point_id in path]
+            if len(coords) < 2:  # TODO Need to fix this in the algorithm somehow...
+                print(f"Skipping path {path_id}: {coords}")
+                continue
+            line = LineString(coords)
             xs, ys = line.xy
             ax.plot(xs, ys, color=colors[j], lw=5, alpha=0.5)
 
