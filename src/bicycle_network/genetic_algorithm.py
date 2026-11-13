@@ -22,6 +22,16 @@ class Network(TypedDict):
     paths: Dict[int, List[str]]  # irs/ips
 
 
+def copy_network(original: Network) -> Network:
+    copy: Network = {
+        "demand_covered": original["demand_covered"],
+        "paths": dict(original["paths"]),
+    }
+    assert id(copy) != id(original)
+    assert id(copy["paths"]) != id(original["paths"])
+    return copy
+
+
 # MAIN
 
 
@@ -49,7 +59,7 @@ def _genetic_algorithm(
         assert id(children) != id(parents)
         # mutated = _mutation(children)
         evaluated = _evaluation(children, demand_matrix)
-        assert id(evaluated) != id(children)
+        # assert id(evaluated) != id(children) # this fails, why? demand should be updated
         pop = evaluated
         assert id(pop) != id(start_pop)
         bcnwplt.plot_population_dict(
@@ -57,7 +67,7 @@ def _genetic_algorithm(
             seed_points,
             grid,
             demand_type="absolute",
-            save=False,
+            save=True,
             filename="pop",
             gen=i,
         )
@@ -130,12 +140,8 @@ def _crossover(n: int, mating_pool: Population) -> Population:
         remove_A, remove_B = mating_pool.pop(id_A), mating_pool.pop(id_B)
         assert remove_A == parent_A, remove_B == parent_B
         child_A, child_B = _inter_intra_crossover(parent_A, parent_B, shared_nodes)
-        assert id(child_A) != id(
-            parent_A
-        )  # this is the issue I think! How to avoid changing parent?
-        assert id(child_B) != id(
-            parent_B
-        )  # this is the issue I think! How to avoid changing parent?
+        assert id(child_A) != id(parent_A)
+        assert id(child_B) != id(parent_B)
         child_pop[i] = child_A
         child_pop[i + 1] = child_B
         i = i + 2
@@ -290,15 +296,19 @@ def _inter_intra_crossover(
 
     # Exchange
     new_A, new_B = _exchange_path_sections(cut_idx_A, cut_idx_B, path_A, path_B)
-    assert new_A != path_A, new_B != path_B
+    assert id(new_A) != id(path_A), id(new_B) != id(path_B)
 
-    # Put new paths into networks
+    # Put new paths into child networks
+    child_A = copy_network(parent_A)
+    child_B = copy_network(parent_B)
+    child_A["paths"][path_id_A] = new_A
+    child_B["paths"][path_id_B] = new_B
+    assert id(parent_A["paths"][path_id_A]) != id(new_A), id(
+        parent_B["paths"][path_id_A]
+    ) != id(new_B)
+    assert id(parent_A) != id(child_A), id(parent_B) != id(child_B)
 
-    parent_A["paths"][path_id_A] = new_A
-    parent_B["paths"][path_id_B] = new_B
-    assert parent_A["paths"][path_id_A] == new_A, parent_B["paths"][path_id_A] == new_B
-
-    return (parent_A, parent_B)
+    return (child_A, child_B)
 
 
 def _get_node_set(nw: Network) -> Set[str]:
