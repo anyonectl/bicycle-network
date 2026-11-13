@@ -111,10 +111,10 @@ def _crossover(n: int, mating_pool: Population) -> Population:
     Returns:
     A population of child networks.
     """
-    parent_ids = list(mating_pool.keys())
     pop: Population = {}
     i = 0
     while i < n:
+        parent_ids = list(mating_pool.keys())
         id_A, id_B = _choose_parents(parent_ids)
         parent_A = mating_pool[id_A]
         parent_B = mating_pool[id_B]
