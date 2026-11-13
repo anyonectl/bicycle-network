@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Set
 from geopandas import GeoDataFrame as gdf
 from matplotlib import pyplot as plt
 import numpy as np
@@ -57,7 +57,7 @@ def make_demand_weird(demand: np.ndarray) -> np.ndarray:
 
 
 def network_demand_coverage(
-    nodes_in_network: list, demand_matrix: pd.DataFrame
+    nodes_in_network: list | Set[str], demand_matrix: pd.DataFrame | gdf
 ) -> float:
     total_demand = float(demand_matrix["demand"].sum())
     pairs_in_network = demand_matrix[["u", "v", "demand"]][
