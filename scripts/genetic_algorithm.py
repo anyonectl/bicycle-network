@@ -85,6 +85,9 @@ bcnwplt.plot_population_dict(
 # %%
 generations = ga.run(start_pop, 10, demand_matrix, seed_points, grid)
 
+# %% [markdown]
+# ### Check last generation
+
 # %%
 n_gens = len(generations)
 final_pop = generations[n_gens - 1]
@@ -106,7 +109,26 @@ print(type(final_pop))
 print(final_pop)
 print(final_pop[0])
 
+# %% [markdown]
+# ## Evaluate generations
+# Scatter plot with x-axis the total length of a network,
+# y-axis the percentage of demand met
+#
+# Can use the shapely objects to calc length - just need to map
+# the cell ids to their shapely points first
+#
+# Can maybe also save a metric demand per length
+
 # %%
-filename = "generations_261113"
-with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
-    json.dump(generations, json_file, indent=4)
+# TODO Placeholder for getting the right data/structure before plotting
+
+# %%
+# TODO Placeholder for scatter plot
+
+# %% [markdown]
+# ## Save generations as JSON
+
+# %%
+# filename = "generations_261113"
+# with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
+#     json.dump(generations, json_file, indent=4)
