@@ -121,7 +121,9 @@ def _crossover(n: int, mating_pool: Population) -> Population:
         shared_nodes = _get_shared_nodes(parent_A, parent_B)
         if shared_nodes is None:
             continue
-        # remove parents from mating_pool? maybe not?
+        # remove parents from mating_pool? maybe not? maybe yes
+        remove_A, remove_B = mating_pool.pop(id_A), mating_pool.pop(id_B)
+        assert remove_A == parent_A, remove_B == parent_B
         child_A, child_B = _inter_intra_crossover(parent_A, parent_B, shared_nodes)
         pop[i] = child_A
         pop[i + 1] = child_B
