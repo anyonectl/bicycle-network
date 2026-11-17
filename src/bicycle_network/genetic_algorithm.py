@@ -2,7 +2,6 @@ from math import fsum
 from typing import Dict, List, Set, Tuple, TypedDict
 import numpy as np
 import bicycle_network.demand as dmnd
-import bicycle_network.plot as bcnwplt
 
 # Gene: a path consisting of several edges
 # Chromosome: a candidate solution (i.e. a network) consisting of genes
@@ -413,6 +412,27 @@ def json_to_pop(data) -> Population:
         for nw_id, nw in data.items()
     }
     return pop
+
+
+def json_to_gens(data) -> Dict[int, Population]:
+    gens: Dict[int, Population] = {
+        int(pop_id): json_to_pop(pop) for pop_id, pop in data.items()
+    }
+    return gens
+
+
+# def json_to_gens(data) -> Dict[int, Population]:
+#     gens: Dict[int, Population] = {
+#         int(pop_id): {
+#             int(nw_id): {
+#                 "demand_covered": nw["demand_covered"],
+#                 "paths": {int(path_id): path for path_id, path in nw["paths"].items()},
+#             }
+#             for nw_id, nw in pop.items()
+#         }
+#         for pop_id, pop in data.items()
+#     }
+#     return gens
 
 
 # VISUALISATION
