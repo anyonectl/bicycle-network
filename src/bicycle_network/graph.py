@@ -7,7 +7,7 @@ def is_connected(nw: Network) -> bool:
     return nx.is_connected(_get_graph(nw))
 
 
-def network_len(nw: Network) -> float:
+def network_len(nw: Network) -> int:
     # (possible temporary) proxy: number of edges.
     # regular hexagons means all edges will have same length
     # parallel edges are not allowed in networkx undirected graphs,

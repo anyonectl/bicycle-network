@@ -21,9 +21,11 @@
 # %%
 import json
 
-from shapely import LineString, MultiLineString, intersection
+from matplotlib import pyplot as plt
+from shapely import MultiLineString
 from bicycle_network.genetic_algorithm import Network
 import bicycle_network.genetic_algorithm as ga
+import bicycle_network.graph
 import geopandas as gpd
 
 # %%
@@ -76,7 +78,7 @@ print(id_to_centroid)
 
 
 # %%
-# Uses multilinestring, counts overlapping lines
+# Uses multilinestring, counts overlapping lines which we don't want
 def network_len(nw: Network) -> float:
     geom = MultiLineString(
         [
@@ -86,54 +88,63 @@ def network_len(nw: Network) -> float:
     )
     return geom.length
 
+
+# %% [markdown]
+# For a grid of 272 regular hexagons, we have:
+# - 210 interior cells with 6 neighbours
+# - 28 side cells with 4 neighbours
+# - 15 protruding top/bottom non-corner cells with 3 neighbours
+# - 15 non-protruding top/bottom non-corner cells with 5 neighbours
+# - 2 protruding corner cells (bottom) with 2 neighbours
+# - 2 non-protruding corner cells (top) with 3 neighbours
+#
+# Which gives a total cell count of 272, and a total number of edges
+# in the dual (?) graph of 751 edges.
+
 # %%
-# This won't work - we need to check all pairs of paths
-# Alternative idea: Get the total length first, as above.
-# Then calculate what needs to be subtracted (find out how to find
-# the overlap)
-# generate all pairs of pairs in a network, then check intersection 
-# between all pairs
-# seems easier to create a networkx graph with a distance attribute, no?
-def network_len2(nw: Network) -> float:
-    total_length = 0.0
-    prev = LineString([id_to_centroid[point_id] for point_id in nw["paths"][0]])
+# Calculate number of edges in each network
+n_edges_dict = {}
 
-    while i < n_paths:
-        while j < n_paths:
-
-        j = j + 1
-    for i, path in enumerate(nw["paths"].values()):
-
-        current = LineString([id_to_centroid[point_id] for point_id in path])
-        overlap = intersection(current, prev)
-        total_length = total_length + current.length - overlap.length
-        prev = current
-
-
-        if i == n_paths:
-            break
-
-
-            current = nw["paths"][i+1]
-
-    
-    id, path in nw["paths"].items():
-        prev = current
-        current = LineString([id_to_centroid[point_id] for point_id in nw["paths"][0]])
-        length = current.length
-        prev = current
-        if id == 0:
-
-
-
-def 
-
+for pop in gens.values():
+    for nw_id, nw in pop.items():
+        n_edges_dict[nw_id] = bicycle_network.graph.network_len(nw)
 
 
 # %%
-for i in range(len(gens)):
-    for j in range(len(gens[i])):
-        print(network_len(gens[i][j]) == network_len2(gens[i][j]))
+xmin = 0
+xmax = 800
+ymin = 0
+ymax = 100
 
-# %%
-# TODO Placeholder for scatter plot
+max_edges = 751
+max_demand = 100
+
+fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+for pop_id, pop in gens.items():
+    ax.scatter(
+        [n_edges_dict[nw_id] for nw_id in pop],  # number of edges in each network
+        [nw["demand_covered"] for nw in pop.values()],
+        label=f"Generation {pop_id}",
+        s=10,
+    )
+ax.hlines(
+    y=max_demand,
+    xmin=xmin,
+    xmax=max_edges,
+    color="blue",
+    linestyle="dashed",
+    label="Full demand coverage",
+)
+ax.vlines(
+    x=max_edges,
+    ymin=ymin,
+    ymax=ymax,
+    color="orange",
+    linestyle="dashed",
+    label="Full triangulation",
+)
+ax.set_xlabel("Number of edges")
+ax.set_ylabel("Demand coverage in %")
+ax.set_xlim(xmin, xmax)
+ax.set_ylim(ymin, ymax)
+ax.legend()
