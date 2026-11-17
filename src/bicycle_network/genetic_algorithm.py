@@ -54,23 +54,15 @@ def _genetic_algorithm(
     while i < iterations:  # or until some other convergence criteria
         parents = _selection(n, pop)
         assert id(parents) != id(pop)
-        children = _crossover(n, parents)
-        assert id(children) != id(parents)
+        # children = _crossover(n, parents)
+        # assert id(children) != id(parents)
         # mutated = _mutation(children)
-        evaluated = _evaluation(children, demand_matrix)
+        # evaluated = _evaluation(children, demand_matrix)
         # assert id(evaluated) != id(children) # this fails, why? demand should be updated
+        mutated = _mutation(parents)
+        evaluated = _evaluation(mutated, demand_matrix)
         pop = evaluated
         assert id(pop) != id(start_pop)
-        # TODO Move plotting out of this module
-        # bcnwplt.plot_population_dict(
-        #     pop,
-        #     seed_points,
-        #     grid,
-        #     demand_type="absolute",
-        #     save=False,
-        #     filename="pop",
-        #     gen=i,
-        # )
         gens[i] = pop
         i = i + 1
     return gens
@@ -151,14 +143,26 @@ def _crossover(n: int, mating_pool: Population) -> Population:
 
 def _mutation(pop: Population) -> Population:
     """
-    Randomly add, remove or replace an edge
+    Randomly mutates a random selection of networks in the population
+    by adding, removing or replacing edges.
 
-    For each ??? (inspired by Mesbah 2012):
-    1. Determine the possible edge additions and removals that ensure connectedness
-    2. Randomly choose 1 action from [add|remove|replace]
-    3. Randomly choose 1 edge (from possible choices in step 1) to [add|remove|replace]
+    Parameters:
+    pop (Population): The population of networks to randomly choose networks from
+
+    Returns:
+    A new population containing original and mutated networks.
     """
-    return pop
+    mutation_probability = 0.5
+    mutate = np.random.choice(
+        a=[True, False],
+        size=len(pop),
+        replace=True,
+        p=[mutation_probability, 1.0 - mutation_probability],
+    ).tolist()
+    mutated: Population = {}
+    for nw_id, nw in pop.items():
+        mutated[nw_id] = _mutate(nw) if mutate[nw_id] else nw
+    return mutated
 
 
 def _evaluation(pop: Population, demand_matrix) -> Population:
@@ -382,11 +386,38 @@ def _exchange_path_sections(
 # MUTATION HELPERS
 
 
-def _mutate():
+def _mutate(nw: Network) -> Network:
     """
     Randomly add, remove or replace an edge
+
+    For each randomly chosen network (inspired by Mesbah 2012):
+    1. Determine the possible edge additions and removals that ensure connectedness
+    2. Randomly choose 1 action from [add|remove|replace]
+    3. Randomly choose 1 edge (from possible choices in step 1) to [add|remove|replace]
     """
-    return
+    action = RNG.choice(["add", "remove", "replace"], size=1)
+    match action:
+        case "add":
+            nw = _add_edge(nw)
+        case "remove":
+            nw = _remove_edge(nw)
+        case "replace":
+            nw = _replace_edge(nw)
+    return nw
+
+
+def _add_edge(nw: Network) -> Network:
+    return nw
+
+
+def _remove_edge(nw: Network) -> Network:
+    return nw
+
+
+def _replace_edge(nw: Network) -> Network:
+    _add_edge(nw)
+    _remove_edge(nw)
+    return nw
 
 
 # EVALUATION HELPERS
