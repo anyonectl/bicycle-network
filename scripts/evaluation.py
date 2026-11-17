@@ -20,10 +20,9 @@
 
 # %%
 import json
-
-from matplotlib import pyplot as plt
 import bicycle_network.genetic_algorithm as ga
 import bicycle_network.graph
+import bicycle_network.plot
 
 # %%
 ROOT = "../results/"
@@ -79,24 +78,4 @@ for pop in gens.values():
 # y-axis the percentage of demand met
 
 # %%
-xmin = 100
-xmax = 200
-ymin = 0
-ymax = 40
-
-max_edges = 751
-max_demand = 100
-
-fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-for pop_id, pop in gens.items():
-    ax.scatter(
-        [n_edges_dict[nw_id] for nw_id in pop],  # number of edges in each network
-        [nw["demand_covered"] for nw in pop.values()],
-        label=f"Generation {pop_id}",
-        s=10,
-    )
-ax.set_xlabel("Number of edges")
-ax.set_ylabel("Demand coverage in %")
-ax.set_xlim(xmin, xmax)
-ax.set_ylim(ymin, ymax)
-ax.legend()
+bicycle_network.plot.scatter(gens, n_edges_dict, output_path=PLOT_PATH)

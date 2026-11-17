@@ -122,3 +122,36 @@ def plot_population_dict(
             bbox_inches="tight",
         )
     plt.show()
+
+
+def scatter(gens, n_edges_dict, save=False, output_path="../results/plots/"):
+    xmin = 100
+    xmax = 200
+    ymin = 0
+    ymax = 40
+
+    # max_edges = 751
+    # max_demand = 100
+
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    for pop_id, pop in gens.items():
+        ax.scatter(
+            [n_edges_dict[nw_id] for nw_id in pop],  # number of edges in each network
+            [nw["demand_covered"] for nw in pop.values()],
+            label=f"Generation {pop_id}",
+            s=10,
+        )
+    ax.set_xlabel("Number of edges")
+    ax.set_ylabel("Demand coverage in %")
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    ax.legend()
+    ax.set_title("Evaluate network performance")
+    plt.tight_layout()
+    plt.show()
+    if save:
+        plt.savefig(
+            f"{output_path}scatter_{current_time()}.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
