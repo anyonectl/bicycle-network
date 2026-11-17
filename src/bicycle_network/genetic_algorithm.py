@@ -415,6 +415,30 @@ def json_to_pop(data) -> Population:
     return pop
 
 
+def json_to_gens(data) -> Dict[int, Population]:
+    gens: Dict[int, Population] = {
+        int(pop_id): json_to_pop(pop) for pop_id, pop in data.items()
+    }
+    return gens
+
+def network_len(nw: Network) -> float:
+    
+
+
+# def json_to_gens(data) -> Dict[int, Population]:
+#     gens: Dict[int, Population] = {
+#         int(pop_id): {
+#             int(nw_id): {
+#                 "demand_covered": nw["demand_covered"],
+#                 "paths": {int(path_id): path for path_id, path in nw["paths"].items()},
+#             }
+#             for nw_id, nw in pop.items()
+#         }
+#         for pop_id, pop in data.items()
+#     }
+#     return gens
+
+
 # VISUALISATION
 
 
