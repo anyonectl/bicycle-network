@@ -4,7 +4,7 @@ import networkx as nx
 
 
 def is_connected(nw: Network) -> bool:
-    return nx.is_connected(_get_graph(nw))
+    return nx.is_connected(get_graph(nw))
 
 
 def network_len(nw: Network) -> int:
@@ -12,10 +12,10 @@ def network_len(nw: Network) -> int:
     # regular hexagons means all edges will have same length
     # parallel edges are not allowed in networkx undirected graphs,
     # so overlapping edges won't be counted more than once, which is what we want
-    return nx.number_of_edges(_get_graph(nw))
+    return nx.number_of_edges(get_graph(nw))
 
 
-def _get_graph(nw: Network) -> nx.Graph:
+def get_graph(nw: Network) -> nx.Graph:
     graph = nx.Graph(_get_edge_list(nw["paths"]))
     return graph
 

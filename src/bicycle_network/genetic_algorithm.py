@@ -1,7 +1,9 @@
 from math import fsum
 from typing import Dict, List, Set, Tuple, TypedDict
 import numpy as np
+import networkx as nx
 import bicycle_network.demand as dmnd
+import bicycle_network.graph
 
 # Gene: a path consisting of several edges
 # Chromosome: a candidate solution (i.e. a network) consisting of genes
@@ -400,18 +402,19 @@ def _mutate(nw: Network) -> Network:
     Returns:
     A mutated version of the input network.
     """
+    nw_as_graph = bicycle_network.graph.get_graph(nw)
     action = RNG.choice(["add", "remove", "replace"], size=1)
     match action:
         case "add":
-            nw = _add_edge(nw)
+            nw = _add_edge(nw, nw_as_graph)
         case "remove":
-            nw = _remove_edge(nw)
+            nw = _remove_edge(nw, nw_as_graph)
         case "replace":
-            nw = _replace_edge(nw)
+            nw = _replace_edge(nw, nw_as_graph)
     return nw
 
 
-def _add_edge(nw: Network) -> Network:
+def _add_edge(nw: Network, nw_as_graph: nx.Graph) -> Network:
     """
     Adding an edge should:
     - Not disconnect the graph
@@ -432,7 +435,7 @@ def _add_edge(nw: Network) -> Network:
     Alternatively, lazy version:
     1. Get all nodes of network (set)
     2. Randomly choose one node
-    3. Get the neighbours of this node
+    3. Get the neighbours of this node (either pass seed_points as param to this function, or create nw as a networkx graph)
     4. Check if any neighbours are not already in the network.
     5. If all neighbours are already in the network, go back to step 2.
     6. Randomly choose a node from the set of neighbours not already in the network.
@@ -442,11 +445,21 @@ def _add_edge(nw: Network) -> Network:
 
     5. Randomly choose a node
     """
+    nodes_in_network = _get_node_set(nw)
+    chosen_node = ""
+    node_pool = {}
+    while len(node_pool) == 0:
+        chosen_node = str(RNG.choice(list(nodes_in_network)))
+        all_neighbours = nw_as_graph.neighbors(chosen_node)
+        node_pool = {node for node in all_neighbours if node not in nodes_in_network}
+    new_node = str(RNG.choice(list(node_pool)))
+    mutated_nw = copy_network(nw)
+    n_paths = len(mutated_nw["paths"])
+    mutated_nw["paths"][n_paths] = [chosen_node, new_node]
+    return mutated_nw
 
-    raise NotImplementedError
 
-
-def _remove_edge(nw: Network) -> Network:
+def _remove_edge(nw: Network, nw_as_graph: nx.Graph) -> Network:
     """
     Removing an edge should:
     - Not disconnect the graph
@@ -470,10 +483,10 @@ def _remove_edge(nw: Network) -> Network:
     return nw
 
 
-def _replace_edge(nw: Network) -> Network:
+def _replace_edge(nw: Network, nw_as_graph: nx.Graph) -> Network:
     """ """
-    nw = _remove_edge(nw)
-    nw = _add_edge(nw)
+    nw = _remove_edge(nw, nw_as_graph)
+    nw = _add_edge(nw, nw_as_graph)
     return nw
 
 
