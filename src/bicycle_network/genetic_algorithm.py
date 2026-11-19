@@ -1,7 +1,7 @@
 from math import fsum
 from typing import Dict, List, Set, Tuple, TypedDict
 import numpy as np
-import networkx as nx
+from geopandas import GeoDataFrame as gdf
 import bicycle_network.demand as dmnd
 import bicycle_network.graph
 
@@ -37,7 +37,11 @@ def copy_network(original: Network) -> Network:
 
 
 def run(
-    start_pop: Population, iterations: int, demand_matrix, seed_points, grid
+    start_pop: Population,
+    iterations: int,
+    demand_matrix: gdf,
+    seed_points: gdf,
+    grid: gdf,
 ) -> Dict[int, Population]:
     return _genetic_algorithm(start_pop, iterations, demand_matrix, seed_points, grid)
 
@@ -46,7 +50,11 @@ def run(
 
 
 def _genetic_algorithm(
-    start_pop: Population, iterations: int, demand_matrix, seed_points, grid
+    start_pop: Population,
+    iterations: int,
+    demand_matrix: gdf,
+    seed_points: gdf,
+    grid: gdf,
 ) -> Dict[int, Population]:
     pop = start_pop
     n = len(pop)
@@ -61,7 +69,7 @@ def _genetic_algorithm(
         # mutated = _mutation(children)
         # evaluated = _evaluation(children, demand_matrix)
         # assert id(evaluated) != id(children) # this fails, why? demand should be updated
-        mutated = _mutation(parents)
+        mutated = _mutation(parents, seed_points)
         evaluated = _evaluation(mutated, demand_matrix)
         pop = evaluated
         assert id(pop) != id(start_pop)
@@ -143,7 +151,7 @@ def _crossover(n: int, mating_pool: Population) -> Population:
     return child_pop
 
 
-def _mutation(pop: Population) -> Population:
+def _mutation(pop: Population, seed_points: gdf) -> Population:
     """
     Randomly mutates a random selection of networks in the population
     by adding, removing or replacing edges.
@@ -163,7 +171,7 @@ def _mutation(pop: Population) -> Population:
     ).tolist()
     mutated: Population = {}
     for nw_id, nw in pop.items():
-        mutated[nw_id] = _mutate(nw) if mutate[nw_id] else nw
+        mutated[nw_id] = _mutate(nw, seed_points) if mutate[nw_id] else nw
     return mutated
 
 
@@ -388,7 +396,7 @@ def _exchange_path_sections(
 # MUTATION HELPERS
 
 
-def _mutate(nw: Network) -> Network:
+def _mutate(nw: Network, seed_points: gdf) -> Network:
     """
     Mutate the given network either by adding, removing or
     replacing an edge. Whether to add, remove or replace is
@@ -402,22 +410,21 @@ def _mutate(nw: Network) -> Network:
     Returns:
     A mutated version of the input network.
     """
-    nw_as_graph = bicycle_network.graph.get_graph(nw)
     action = RNG.choice(["add", "remove", "replace"], size=1)
     match action:
         case "add":
-            nw = _add_edge(nw, nw_as_graph)
+            nw = _add_edge(nw, seed_points)
         case "remove":
-            nw = _remove_edge(nw, nw_as_graph)
+            nw = _remove_edge(nw)
         case "replace":
-            nw = _replace_edge(nw, nw_as_graph)
+            nw = _replace_edge(nw)
     return nw
 
 
-def _add_edge(nw: Network, nw_as_graph: nx.Graph) -> Network:
+def _add_edge(nw: Network, seed_points: gdf) -> Network:
     """
     Adds an edge to the network that connects an existing node
-    in the network with a
+    in the network with a neighbouring node not already in the network.
 
     Adding an edge should:
     - Not disconnect the graph
@@ -454,12 +461,17 @@ def _add_edge(nw: Network, nw_as_graph: nx.Graph) -> Network:
     node_pool = {}
     while len(node_pool) == 0:
         chosen_node = str(RNG.choice(list(nodes_in_network)))
-        all_neighbours = nw_as_graph.neighbors(chosen_node)
-        node_pool = {node for node in all_neighbours if node not in nodes_in_network}
+        neighbours = set(
+            seed_points.loc[seed_points["id"] == chosen_node, "neighbours"]
+            .values[0]
+            .values()  # type: ignore
+        )
+        node_pool = neighbours - nodes_in_network  # set difference
     new_node = str(RNG.choice(list(node_pool)))
     mutated_nw = copy_network(nw)
     n_paths = len(mutated_nw["paths"])
     mutated_nw["paths"][n_paths] = [chosen_node, new_node]
+    assert id(nw) != id(mutated_nw)
     return mutated_nw
     # FUCK THIS WON'T WORK. HERE'S WHY:
     # The nw_as_graph will only contain the nodes already in the network,
@@ -467,9 +479,11 @@ def _add_edge(nw: Network, nw_as_graph: nx.Graph) -> Network:
     # be in the network, which is not what we want. The effect will also ne
     # that node_pool will always be empty, so we now have ourselves an
     # infinite loop - wuhu.
+    # So I DO need the seed_points to be passed to access neigbours. Or add a networkx
+    # representation of the grid that is the inverse of nw, in the grid space?
 
 
-def _remove_edge(nw: Network, nw_as_graph: nx.Graph) -> Network:
+def _remove_edge(nw: Network) -> Network:
     """
     Removing an edge should:
     - Not disconnect the graph
@@ -490,13 +504,14 @@ def _remove_edge(nw: Network, nw_as_graph: nx.Graph) -> Network:
 
     Must copy input network to avoid altering original
     """
-    return nw
+    nw_as_graph = bicycle_network.graph.get_graph(nw)
+    raise NotImplementedError
 
 
-def _replace_edge(nw: Network, nw_as_graph: nx.Graph) -> Network:
+def _replace_edge(nw: Network, seed_points: gdf) -> Network:
     """ """
-    nw = _remove_edge(nw, nw_as_graph)
-    nw = _add_edge(nw, nw_as_graph)
+    nw = _remove_edge(nw)
+    nw = _add_edge(nw, seed_points)
     return nw
 
 
