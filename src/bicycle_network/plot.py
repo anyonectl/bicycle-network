@@ -124,6 +124,50 @@ def plot_population_dict(
     plt.show()
 
 
+def plot_network(
+    nw,
+    seed_points: gdf,
+    grid: gdf,
+    save=False,
+    output_path="../results/plots/",
+    filename="network",
+):
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    cmap = mplcm.get_cmap("tab10")
+    id_to_centroid = seed_points.set_index("id")["geometry"].to_dict()
+    xmin, ymin, xmax, ymax = grid.total_bounds
+
+    demand_coverage = nw["demand_covered"]
+    path_ids = list(nw["paths"].keys())
+    colors = cmap(np.linspace(0, 1, len(path_ids)))
+    grid.boundary.plot(ax=ax, color="grey", lw=1)
+    seed_points["geometry"].plot(ax=ax, color="black", markersize=1)
+
+    for j, (path_id, path) in enumerate(nw["paths"].items()):
+        coords = [id_to_centroid[point_id] for point_id in path]
+        if len(coords) < 2:  # TODO Need to fix this in the algorithm somehow...
+            print(f"Skipping path {path_id}: {coords}")
+            continue
+        line = LineString(coords)
+        xs, ys = line.xy
+        ax.plot(xs, ys, color=colors[j], lw=5, alpha=0.5)
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    ax.set_aspect("equal", adjustable="box")
+    ax.legend()
+    ax.set_title(f"Network, demand coverage: {demand_coverage:.2f} %")
+    ax.set_axis_off()
+    plt.tight_layout()
+
+    if save:
+        plt.savefig(
+            f"{output_path}{filename}_{current_time()}.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+    plt.show()
+
+
 def scatter(gens, n_edges_dict, save=False, output_path="../results/plots/"):
     xmin = 100
     xmax = 200
