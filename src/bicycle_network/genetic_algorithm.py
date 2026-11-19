@@ -439,7 +439,7 @@ def _mutate(nw: Network, seed_points: gdf) -> Network:
     Returns:
     A mutated version of the input network.
     """
-    action = str(RNG.choice(["add", "remove", "replace"], size=1))
+    action = str(RNG.choice(["add", "remove", "replace"], size=1)[0])
     match action:
         case "add":
             nw = _add_edge(nw, seed_points)
