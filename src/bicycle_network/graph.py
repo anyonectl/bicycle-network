@@ -1,5 +1,5 @@
 from bicycle_network.genetic_algorithm import Network
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 import networkx as nx
 
 
@@ -15,12 +15,21 @@ def network_len(nw: Network) -> int:
     return nx.number_of_edges(get_graph(nw))
 
 
+def get_bridges(nw: Network) -> Set[Tuple[str, str]]:
+    graph = get_graph(nw)
+    return set(nx.bridges(graph))
+
+
 def get_graph(nw: Network) -> nx.Graph:
-    graph = nx.Graph(_get_edge_list(nw["paths"]))
+    graph = nx.Graph(get_edge_list(nw["paths"]))
     return graph
 
 
-def _get_edge_list(paths: Dict[int, List[str]]) -> List[Tuple[str, str]]:
+def get_edge_set(nw: Network) -> Set[Tuple[str, str]]:
+    return set(get_edge_list(nw["paths"]))
+
+
+def get_edge_list(paths: Dict[int, List[str]]) -> List[Tuple[str, str]]:
     path_list = []
     for path in paths.values():
         edge_list = _get_edges_in_path(path)

@@ -373,6 +373,30 @@ def _find_node(node: str, nw: Network) -> Tuple[int, int, List[str]]:
     return (node_index, path_id, path_list)
 
 
+def _find_edge(edge: Tuple[str, str], nw: Network) -> Tuple[int, int, int]:
+    """
+    Finds {edge} and its path in {nw}. Naive method.
+
+    Parameters:
+    node (str): The node to search for.
+    nw (Network): The network to search in.
+
+    Returns:
+    A tuple containing 1) the node's index in its path, 1) the path id, 2) the path itself.
+    """
+    u, v = edge
+    for path_id, path in nw["paths"].items():
+        if u in path and v in path:
+            u_idx = path.index(u)
+            v_idx = path.index(v)
+            diff = v_idx - u_idx
+            if diff == 1:
+                return (path_id, u_idx, v_idx)
+            if diff == -1:
+                return (path_id, v_idx, u_idx)
+    raise KeyError
+
+
 def _exchange_path_sections(
     index_A: int, index_B: int, path_A: List[str], path_B: List[str]
 ) -> Tuple[List[str], List[str]]:
@@ -410,14 +434,14 @@ def _mutate(nw: Network, seed_points: gdf) -> Network:
     Returns:
     A mutated version of the input network.
     """
-    action = RNG.choice(["add", "remove", "replace"], size=1)
+    action = str(RNG.choice(["add", "remove", "replace"], size=1))
     match action:
         case "add":
             nw = _add_edge(nw, seed_points)
         case "remove":
             nw = _remove_edge(nw)
         case "replace":
-            nw = _replace_edge(nw)
+            nw = _replace_edge(nw, seed_points)
     return nw
 
 
@@ -425,16 +449,16 @@ def _add_edge(nw: Network, seed_points: gdf) -> Network:
     """
     Adds an edge to the network that connects an existing node
     in the network with a neighbouring node not already in the network.
+    The added edge is added as a new path, which may not be what we want.
+    This method keeps connectivity in the graph and mutates a copy of
+    the input network to avoid altering the original network.
 
-    Adding an edge should:
-    - Not disconnect the graph
-    - Not be a parallel edge
+    Parameters:
+    nw (Network): The network to mutate.
+    seed_points (geopandas.GeoDataFrame): Matrix containing all seed points and their neighbours
 
-    If possible, best to:
-    - Compute the set of possible edge addtions
-    - Randomly choose 2
-
-    This function must copy input network to avoid altering original
+    Returns:
+    A mutated version of the input network with one edge added.
 
     Idea, eager version:
     1. Get all nodes of network
@@ -451,10 +475,8 @@ def _add_edge(nw: Network, seed_points: gdf) -> Network:
     5. If all neighbours are already in the network, go back to step 2.
     6. Randomly choose a node from the set of neighbours not already in the network.
     7. Add edge from chosen node in step 2 to chosen node in step 6.
-    6. Should this be its own path, or should it be a part of the path with the
+    8. Should this be its own path, or should it be a part of the path with the
         original chosen node? I guess it shouldn't matter?
-
-    5. Randomly choose a node
     """
     nodes_in_network = _get_node_set(nw)
     chosen_node = ""
@@ -477,34 +499,48 @@ def _add_edge(nw: Network, seed_points: gdf) -> Network:
 
 def _remove_edge(nw: Network) -> Network:
     """
-    Removing an edge should:
-    - Not disconnect the graph
+    Removes an edge from one of the paths of the input network.
+    The edge is only removed if it is not a bridge, i.e. removing
+    the edge does not disconnect the network. If no edge exists
+    that isn't a bridge in the network, the original network is
+    returned. Nothing is done to the path that contained the
+    removed edge, so the path itself will be disconnected.
+    This method keeps connectivity in the graph and mutates a copy of
+    the input network to avoid altering the original network.
 
-    1. Determine the possible edge removals that ensure connectedness
-    2. Randomly choose 1 edge (from possible choices in step 1) to add
+    Eager method:
+    1. Gets all edges in network
+    2. Finds the set of edges that aren't bridges
+    3. Randomly chooses an edge from the non-bridge set
+    4. Finds this edge in the network structure and removes it
+    5. Returns the newly mutated network
 
-    Idea, lazy version:
-    1. Get all edges in network
-    2. Randomly choose edge from to remove
-    3. Check if chosen edge is a bridge
-    4. If it is a bridge, go back to step 2.
-    5. If it is not a bridge, remove it.
-    6. Maybe need to update some paths if we've broken a path without
-        breaking the network. How can we do that? Maybe it shouldn't matter?
+    Parameters:
+    nw (Network): The network to mutate.
 
-    Idea, eager version:
-
-    Must copy input network to avoid altering original
+    Returns:
+    A mutated version of the input network with one edge removed.
     """
-    nw_as_graph = bicycle_network.graph.get_graph(nw)
-    raise NotImplementedError
+    edges = bicycle_network.graph.get_edge_set(nw)
+    bridges = bicycle_network.graph.get_bridges(nw)
+    edge_pool = edges - bridges  # set difference
+    if len(edge_pool) == 0:
+        return nw
+    fst, snd = tuple(RNG.choice(list(edge_pool)))
+    chosen_edge = (str(fst), str(snd))
+    path_id, u_idx, v_idx = _find_edge(chosen_edge, nw)
+    mutated_nw = copy_network(nw)
+    removed_u = mutated_nw["paths"][path_id].pop(u_idx)
+    removed_v = mutated_nw["paths"][path_id].pop(v_idx)
+    assert (removed_u, removed_v) == chosen_edge  # or (removed_v, removed_u) ??
+    assert id(nw) != id(mutated_nw)
+    return mutated_nw
 
 
 def _replace_edge(nw: Network, seed_points: gdf) -> Network:
     """ """
     nw = _remove_edge(nw)
-    nw = _add_edge(nw, seed_points)
-    return nw
+    return _add_edge(nw, seed_points)
 
 
 # EVALUATION HELPERS
