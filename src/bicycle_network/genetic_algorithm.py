@@ -39,11 +39,14 @@ def copy_network(original: Network) -> Network:
 def run(
     start_pop: Population,
     iterations: int,
+    mutation_probability: float,
     demand_matrix: gdf,
     seed_points: gdf,
     grid: gdf,
 ) -> Dict[int, Population]:
-    return _genetic_algorithm(start_pop, iterations, demand_matrix, seed_points, grid)
+    return _genetic_algorithm(
+        start_pop, iterations, mutation_probability, demand_matrix, seed_points, grid
+    )
 
 
 # ORCHESTRATOR
@@ -52,6 +55,7 @@ def run(
 def _genetic_algorithm(
     start_pop: Population,
     iterations: int,
+    mutation_probability: float,
     demand_matrix: gdf,
     seed_points: gdf,
     grid: gdf,
@@ -69,7 +73,7 @@ def _genetic_algorithm(
         # mutated = _mutation(children)
         # evaluated = _evaluation(children, demand_matrix)
         # assert id(evaluated) != id(children) # this fails, why? demand should be updated
-        mutated = _mutation(parents, seed_points)
+        mutated = _mutation(parents, seed_points, mutation_probability)
         evaluated = _evaluation(mutated, demand_matrix)
         pop = evaluated
         assert id(pop) != id(start_pop)
@@ -151,7 +155,9 @@ def _crossover(n: int, mating_pool: Population) -> Population:
     return child_pop
 
 
-def _mutation(pop: Population, seed_points: gdf) -> Population:
+def _mutation(
+    pop: Population, seed_points: gdf, mutation_probability=0.3
+) -> Population:
     """
     Randomly mutates a random selection of networks in the population
     by adding, removing or replacing edges.
@@ -162,7 +168,6 @@ def _mutation(pop: Population, seed_points: gdf) -> Population:
     Returns:
     A new population containing original and mutated networks.
     """
-    mutation_probability = 0.5
     mutate = np.random.choice(
         a=[True, False],
         size=len(pop),
@@ -532,7 +537,10 @@ def _remove_edge(nw: Network) -> Network:
     mutated_nw = copy_network(nw)
     removed_u = mutated_nw["paths"][path_id].pop(u_idx)
     removed_v = mutated_nw["paths"][path_id].pop(v_idx)
-    assert (removed_u, removed_v) == chosen_edge  # or (removed_v, removed_u) ??
+    same_edge = ((removed_u, removed_v) == chosen_edge) or (
+        (removed_v, removed_u) == chosen_edge
+    )
+    assert same_edge
     assert id(nw) != id(mutated_nw)
     return mutated_nw
 
