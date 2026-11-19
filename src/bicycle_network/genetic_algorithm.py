@@ -378,7 +378,7 @@ def _find_node(node: str, nw: Network) -> Tuple[int, int, List[str]]:
     return (node_index, path_id, path_list)
 
 
-def _find_edge(edge: Tuple[str, str], nw: Network) -> Tuple[int, int, int]:
+def _find_edge(edge: Tuple[str, str], nw: Network) -> Tuple[int, int]:
     """
     Finds {edge} and its path in {nw}. Naive method.
 
@@ -396,9 +396,9 @@ def _find_edge(edge: Tuple[str, str], nw: Network) -> Tuple[int, int, int]:
             v_idx = path.index(v)
             diff = v_idx - u_idx
             if diff == 1:
-                return (path_id, u_idx, v_idx)
+                return (path_id, u_idx)
             if diff == -1:
-                return (path_id, v_idx, u_idx)
+                return (path_id, v_idx)
     raise KeyError
 
 
@@ -533,10 +533,10 @@ def _remove_edge(nw: Network) -> Network:
         return nw
     fst, snd = tuple(RNG.choice(list(edge_pool)))
     chosen_edge = (str(fst), str(snd))
-    path_id, u_idx, v_idx = _find_edge(chosen_edge, nw)
+    path_id, u_idx = _find_edge(chosen_edge, nw)
     mutated_nw = copy_network(nw)
     removed_u = mutated_nw["paths"][path_id].pop(u_idx)
-    removed_v = mutated_nw["paths"][path_id].pop(v_idx)
+    removed_v = mutated_nw["paths"][path_id].pop(u_idx)
     same_edge = ((removed_u, removed_v) == chosen_edge) or (
         (removed_v, removed_u) == chosen_edge
     )
