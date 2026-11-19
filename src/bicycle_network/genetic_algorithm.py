@@ -388,12 +388,17 @@ def _exchange_path_sections(
 
 def _mutate(nw: Network) -> Network:
     """
-    Randomly add, remove or replace an edge
+    Mutate the given network either by adding, removing or
+    replacing an edge. Whether to add, remove or replace is
+    determined randomly.
 
-    For each randomly chosen network (inspired by Mesbah 2012):
-    1. Determine the possible edge additions and removals that ensure connectedness
-    2. Randomly choose 1 action from [add|remove|replace]
-    3. Randomly choose 1 edge (from possible choices in step 1) to [add|remove|replace]
+    The original input network is not altered.
+
+    Parameters:
+    nw (Network): The network to mutate.
+
+    Returns:
+    A mutated version of the input network.
     """
     action = RNG.choice(["add", "remove", "replace"], size=1)
     match action:
@@ -407,16 +412,40 @@ def _mutate(nw: Network) -> Network:
 
 
 def _add_edge(nw: Network) -> Network:
-    return nw
+    """
+    Adding an edge should:
+    - Not disconnect the graph
+    - Not be a parallel edge
+
+    If possible, best to:
+    - Compute the set of possible edge addtions
+    - Randomly choose 2
+
+    This function must copy input network to avoid altering original
+    """
+
+    raise NotImplementedError
 
 
 def _remove_edge(nw: Network) -> Network:
+    """
+    Removing an edge should:
+    - Not disconnect the graph
+
+    Idea: If edge is a bridge,
+
+    1. Determine the possible edge additions that ensure connectedness
+    2. Randomly choose 1 edge (from possible choices in step 1) to add
+
+    Must copy input network to avoid altering original
+    """
     return nw
 
 
 def _replace_edge(nw: Network) -> Network:
-    _add_edge(nw)
-    _remove_edge(nw)
+    """ """
+    nw = _remove_edge(nw)
+    nw = _add_edge(nw)
     return nw
 
 
