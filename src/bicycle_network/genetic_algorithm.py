@@ -416,6 +416,9 @@ def _mutate(nw: Network) -> Network:
 
 def _add_edge(nw: Network, nw_as_graph: nx.Graph) -> Network:
     """
+    Adds an edge to the network that connects an existing node
+    in the network with a
+
     Adding an edge should:
     - Not disconnect the graph
     - Not be a parallel edge
@@ -435,7 +438,8 @@ def _add_edge(nw: Network, nw_as_graph: nx.Graph) -> Network:
     Alternatively, lazy version:
     1. Get all nodes of network (set)
     2. Randomly choose one node
-    3. Get the neighbours of this node (either pass seed_points as param to this function, or create nw as a networkx graph)
+    3. Get the neighbours of this node (either pass seed_points as param to this function,
+        or create nw as a networkx graph)
     4. Check if any neighbours are not already in the network.
     5. If all neighbours are already in the network, go back to step 2.
     6. Randomly choose a node from the set of neighbours not already in the network.
@@ -457,6 +461,12 @@ def _add_edge(nw: Network, nw_as_graph: nx.Graph) -> Network:
     n_paths = len(mutated_nw["paths"])
     mutated_nw["paths"][n_paths] = [chosen_node, new_node]
     return mutated_nw
+    # FUCK THIS WON'T WORK. HERE'S WHY:
+    # The nw_as_graph will only contain the nodes already in the network,
+    # not all seed points in the grid. So any neighbours found will already
+    # be in the network, which is not what we want. The effect will also ne
+    # that node_pool will always be empty, so we now have ourselves an
+    # infinite loop - wuhu.
 
 
 def _remove_edge(nw: Network, nw_as_graph: nx.Graph) -> Network:
