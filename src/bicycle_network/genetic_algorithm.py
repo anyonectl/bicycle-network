@@ -556,8 +556,9 @@ def _replace_edge(nw: Network, seed_points: gdf) -> Network:
 
 def _recalculcate_fitness(pop: Population, demand_matrix) -> Population:
     for nw in pop.values():
-        nw["demand_covered"] = dmnd.network_demand_coverage(
-            _get_node_set(nw), demand_matrix
+        new_nw = copy_network(nw)
+        new_nw["demand_covered"] = dmnd.network_demand_coverage(
+            _get_node_set(new_nw), demand_matrix
         )
     return pop
 
