@@ -3,6 +3,7 @@ from typing import Dict, List, Set, Tuple, TypedDict
 import numpy as np
 from geopandas import GeoDataFrame as gdf
 import bicycle_network.demand as dmnd
+import bicycle_network.plot as bcnwplt
 import bicycle_network.graph
 
 # Gene: a path consisting of several edges
@@ -73,7 +74,7 @@ def _genetic_algorithm(
         # mutated = _mutation(children)
         # evaluated = _evaluation(children, demand_matrix)
         # assert id(evaluated) != id(children) # this fails, why? demand should be updated
-        mutated = _mutation(parents, seed_points, mutation_probability)
+        mutated = _mutation(parents, seed_points, grid, mutation_probability)
         evaluated = _evaluation(mutated, demand_matrix)
         pop = evaluated
         assert id(pop) != id(start_pop)
@@ -156,7 +157,7 @@ def _crossover(n: int, mating_pool: Population) -> Population:
 
 
 def _mutation(
-    pop: Population, seed_points: gdf, mutation_probability=0.3
+    pop: Population, seed_points: gdf, grid: gdf, mutation_probability=0.3
 ) -> Population:
     """
     Randomly mutates a random selection of networks in the population
@@ -176,7 +177,33 @@ def _mutation(
     ).tolist()
     mutated: Population = {}
     for nw_id, nw in pop.items():
-        mutated[nw_id] = _mutate(nw, seed_points) if mutate[nw_id] else nw
+        mutated[nw_id] = _mutate(nw, seed_points, grid) if mutate[nw_id] else nw
+        is_connected = bicycle_network.graph.is_connected(mutated[nw_id])
+        if not is_connected:
+            print(f"see network id: {nw_id}")
+            print("first plot: pop before mutation")
+            bcnwplt.plot_population_dict(
+                pop,
+                seed_points,
+                grid,
+                demand_type="absolute",
+                save=True,
+                output_path="../results/plots/",
+                filename=f"connectivity_BEFORE_mutation_nw{nw_id}",
+                gen=-99,
+            )
+            print(f"see network id: {nw_id}")
+            print("second plot: pop after mutation")
+            bcnwplt.plot_population_dict(
+                mutated,
+                seed_points,
+                grid,
+                demand_type="absolute",
+                save=True,
+                output_path="../results/plots/",
+                filename=f"connectivity_AFTER_mutation_nw{nw_id}",
+                gen=-100,
+            )
     return mutated
 
 
@@ -397,8 +424,6 @@ def _find_edge(edge: Tuple[str, str], nw: Network) -> Tuple[int, int]:
             diff = v_idx - u_idx
             if diff == 1:
                 return (path_id, u_idx)
-            if diff == -1:
-                return (path_id, v_idx)
     raise KeyError
 
 
@@ -425,7 +450,7 @@ def _exchange_path_sections(
 # MUTATION HELPERS
 
 
-def _mutate(nw: Network, seed_points: gdf) -> Network:
+def _mutate(nw: Network, seed_points: gdf, grid: gdf) -> Network:
     """
     Mutate the given network either by adding, removing or
     replacing an edge. Whether to add, remove or replace is
@@ -439,20 +464,20 @@ def _mutate(nw: Network, seed_points: gdf) -> Network:
     Returns:
     A mutated version of the input network.
     """
-    assert bicycle_network.graph.is_connected(nw)
+    # assert bicycle_network.graph.is_connected(nw)
     action = str(RNG.choice(["add", "remove", "replace"], size=1)[0])
     match action:
         case "add":
             new_nw = _add_edge(nw, seed_points)
         case "remove":
-            new_nw = _remove_edge(nw)
+            new_nw = _remove_edge(nw, seed_points, grid)
         case "replace":
-            new_nw = _replace_edge(nw, seed_points)
+            new_nw = _replace_edge(nw, seed_points, grid)
         case _:
             new_nw = nw
-    assert bicycle_network.graph.is_connected(new_nw)
+    # assert bicycle_network.graph.is_connected(new_nw)
     assert id(nw) != id(new_nw)
-    return nw
+    return new_nw
 
 
 def _add_edge(nw: Network, seed_points: gdf) -> Network:
@@ -507,7 +532,7 @@ def _add_edge(nw: Network, seed_points: gdf) -> Network:
     return mutated_nw
 
 
-def _remove_edge(nw: Network) -> Network:
+def _remove_edge(nw: Network, seed_points, grid) -> Network:
     """
     Removes an edge from one of the paths of the input network.
     The edge is only removed if it is not a bridge, i.e. removing
@@ -543,19 +568,44 @@ def _remove_edge(nw: Network) -> Network:
     chosen_edge = (str(fst), str(snd))
     path_id, u_idx = _find_edge(chosen_edge, nw)
     mutated_nw = copy_network(nw)
+    assert id(nw) != id(mutated_nw)
     mutated_nw["paths"][path_id] = nw["paths"][path_id][: u_idx + 1]
     n_paths = len(mutated_nw["paths"])
     mutated_nw["paths"][n_paths] = nw["paths"][path_id][u_idx + 1 :]
     removed_u = mutated_nw["paths"][path_id][-1]
     removed_v = mutated_nw["paths"][n_paths][0]
     assert (removed_u, removed_v) == chosen_edge
-    assert id(nw) != id(mutated_nw)
+    if not bicycle_network.graph.is_connected(mutated_nw):
+        print(f"nw: {nw}")
+        print(f"mutated_nw: {mutated_nw}")
+        print(f"chosen edge: {chosen_edge}")
+        print(f"removed u: {removed_u}")
+        print(f"removed v: {removed_v}")
+        print(f"path_id: {path_id}")
+        print(f"u_idx: {u_idx}")
+        print(f"path that was divided: {nw["paths"][path_id]}")
+        print(f"new path 1: {mutated_nw["paths"][path_id]}")
+        print(f"new path 2: {mutated_nw["paths"][n_paths]}")
+        bcnwplt.plot_network(
+            nw,
+            seed_points,
+            grid,
+            save=True,
+            filename=f"connectivity_BEFORE_mutation_network_path{path_id}",
+        )
+        bcnwplt.plot_network(
+            mutated_nw,
+            seed_points,
+            grid,
+            save=True,
+            filename=f"connectivity_BEFORE_mutation_network_path{path_id}",
+        )
     return mutated_nw
 
 
-def _replace_edge(nw: Network, seed_points: gdf) -> Network:
+def _replace_edge(nw: Network, seed_points: gdf, grid) -> Network:
     """ """
-    nw = _remove_edge(nw)
+    nw = _remove_edge(nw, seed_points, grid)
     return _add_edge(nw, seed_points)
 
 
