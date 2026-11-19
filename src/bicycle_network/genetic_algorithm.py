@@ -422,6 +422,25 @@ def _add_edge(nw: Network) -> Network:
     - Randomly choose 2
 
     This function must copy input network to avoid altering original
+
+    Idea, eager version:
+    1. Get all nodes of network
+    2. Get their neighbours
+    3. Only keep neighbours that are not already in the network
+    4. This will be the set of possible edge additions
+
+    Alternatively, lazy version:
+    1. Get all nodes of network (set)
+    2. Randomly choose one node
+    3. Get the neighbours of this node
+    4. Check if any neighbours are not already in the network.
+    5. If all neighbours are already in the network, go back to step 2.
+    6. Randomly choose a node from the set of neighbours not already in the network.
+    7. Add edge from chosen node in step 2 to chosen node in step 6.
+    6. Should this be its own path, or should it be a part of the path with the
+        original chosen node? I guess it shouldn't matter?
+
+    5. Randomly choose a node
     """
 
     raise NotImplementedError
@@ -432,10 +451,19 @@ def _remove_edge(nw: Network) -> Network:
     Removing an edge should:
     - Not disconnect the graph
 
-    Idea: If edge is a bridge,
-
-    1. Determine the possible edge additions that ensure connectedness
+    1. Determine the possible edge removals that ensure connectedness
     2. Randomly choose 1 edge (from possible choices in step 1) to add
+
+    Idea, lazy version:
+    1. Get all edges in network
+    2. Randomly choose edge from to remove
+    3. Check if chosen edge is a bridge
+    4. If it is a bridge, go back to step 2.
+    5. If it is not a bridge, remove it.
+    6. Maybe need to update some paths if we've broken a path without
+        breaking the network. How can we do that? Maybe it shouldn't matter?
+
+    Idea, eager version:
 
     Must copy input network to avoid altering original
     """
