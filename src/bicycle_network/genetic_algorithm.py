@@ -439,14 +439,19 @@ def _mutate(nw: Network, seed_points: gdf) -> Network:
     Returns:
     A mutated version of the input network.
     """
+    assert bicycle_network.graph.is_connected(nw)
     action = str(RNG.choice(["add", "remove", "replace"], size=1)[0])
     match action:
         case "add":
-            nw = _add_edge(nw, seed_points)
+            new_nw = _add_edge(nw, seed_points)
         case "remove":
-            nw = _remove_edge(nw)
+            new_nw = _remove_edge(nw)
         case "replace":
-            nw = _replace_edge(nw, seed_points)
+            new_nw = _replace_edge(nw, seed_points)
+        case _:
+            new_nw = nw
+    assert bicycle_network.graph.is_connected(new_nw)
+    assert id(nw) != id(new_nw)
     return nw
 
 
@@ -512,6 +517,9 @@ def _remove_edge(nw: Network) -> Network:
     removed edge, so the path itself will be disconnected.
     This method keeps connectivity in the graph and mutates a copy of
     the input network to avoid altering the original network.
+    ISSUE: If there are parallel edges from different paths in the
+    network dict structure, this method only removes one of them.
+    May be fixed in the _find_edge function if we find all occurrences.
 
     Eager method:
     1. Gets all edges in network
@@ -535,12 +543,12 @@ def _remove_edge(nw: Network) -> Network:
     chosen_edge = (str(fst), str(snd))
     path_id, u_idx = _find_edge(chosen_edge, nw)
     mutated_nw = copy_network(nw)
-    removed_u = mutated_nw["paths"][path_id].pop(u_idx)
-    removed_v = mutated_nw["paths"][path_id].pop(u_idx)
-    same_edge = ((removed_u, removed_v) == chosen_edge) or (
-        (removed_v, removed_u) == chosen_edge
-    )
-    assert same_edge
+    mutated_nw["paths"][path_id] = nw["paths"][path_id][: u_idx + 1]
+    n_paths = len(mutated_nw["paths"])
+    mutated_nw["paths"][n_paths] = nw["paths"][path_id][u_idx + 1 :]
+    removed_u = mutated_nw["paths"][path_id][-1]
+    removed_v = mutated_nw["paths"][n_paths][0]
+    assert (removed_u, removed_v) == chosen_edge
     assert id(nw) != id(mutated_nw)
     return mutated_nw
 
