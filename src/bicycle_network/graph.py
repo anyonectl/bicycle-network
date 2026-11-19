@@ -1,6 +1,11 @@
-from bicycle_network.genetic_algorithm import Network
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, TypedDict
 import networkx as nx
+
+
+# TODO Put in own module/class file with methods, i.e. get path, get nodes, get geoms etc
+class Network(TypedDict):
+    demand_covered: float
+    paths: Dict[int, List[str]]  # irs/ips
 
 
 def is_connected(nw: Network) -> bool:
