@@ -28,7 +28,7 @@ import bicycle_network.plot
 ROOT = "../results/"
 PLOT_PATH = ROOT + "plots/"
 DATA_PATH = ROOT + "network-data/"
-GEN_FILE = f"{DATA_PATH}generations_261113.json"
+GEN_FILE = f"{DATA_PATH}generations_261119.json"
 
 # %% [markdown]
 # ### Load data

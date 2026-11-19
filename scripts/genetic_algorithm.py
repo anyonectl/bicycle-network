@@ -98,9 +98,9 @@ bcnwplt.plot_population_dict(
     seed_points,
     grid,
     demand_type="absolute",
-    save=False,
+    save=True,
     output_path=PLOT_PATH,
-    filename="finalpop",
+    filename="finalpop_onlymutation",
     gen=n_gens,
 )
 
@@ -129,6 +129,6 @@ print(final_pop[0])
 # ## Save generations as JSON
 
 # %%
-# filename = "generations_261113"
-# with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
-#     json.dump(generations, json_file, indent=4)
+filename = "generations_261119"
+with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
+    json.dump(generations, json_file, indent=4)
