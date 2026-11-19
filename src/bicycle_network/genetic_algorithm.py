@@ -473,14 +473,6 @@ def _add_edge(nw: Network, seed_points: gdf) -> Network:
     mutated_nw["paths"][n_paths] = [chosen_node, new_node]
     assert id(nw) != id(mutated_nw)
     return mutated_nw
-    # FUCK THIS WON'T WORK. HERE'S WHY:
-    # The nw_as_graph will only contain the nodes already in the network,
-    # not all seed points in the grid. So any neighbours found will already
-    # be in the network, which is not what we want. The effect will also ne
-    # that node_pool will always be empty, so we now have ourselves an
-    # infinite loop - wuhu.
-    # So I DO need the seed_points to be passed to access neigbours. Or add a networkx
-    # representation of the grid that is the inverse of nw, in the grid space?
 
 
 def _remove_edge(nw: Network) -> Network:
