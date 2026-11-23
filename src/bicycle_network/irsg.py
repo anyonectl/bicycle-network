@@ -269,31 +269,12 @@ def connect_graph(components):
     """
 
 
-# FOR TESTS
-# >>> import networkx as nx
-# >>> irs
-# {0: {'nodes': [0, 1, 2, 3, 4]}, 1: {'nodes': [5, 6, 7, 8, 9]}, 2: {'nodes': [10, 11, 12, 13, 14]}}
-# >>> def create_graph(irs: Dict) -> nx.Graph:
-# ...     graph = nx.Graph(get_edge_list(irs))
-# ...     return graph
-# ...
-# ...
-# ... def get_edge_list(irs: Dict) -> List[Tuple[str, str]]:
-# ...     path_list = []
-# ...     for i in range(len(irs)):
-# ...         path = irs[i]["nodes"]
-# ...         edge_list = get_edges_in_path(path)
-# ...         path_list.append(edge_list)
-# ...     return [edge for edge_list in path_list for edge in edge_list]
-# ...
-# ...
-# ... def get_edges_in_path(path: List[str]) -> List[Tuple[str, str]]:
-# ...     return list(zip(path[:], path[1:]))
-# ...
-# >>> g = create_graph(irs)
-# >>> type(g)
-# <class 'networkx.classes.graph.Graph'>
-# >>> nx.is_connected(g)
-# False
-# >>> nx.number_connected_components(g)
-# 3
+def json_to_pop(data):
+    pop = {
+        int(nw_id): {
+            "demand_covered": nw["demand_covered"],
+            "paths": {int(path_id): path for path_id, path in nw["paths"].items()},
+        }
+        for nw_id, nw in data.items()
+    }
+    return pop
