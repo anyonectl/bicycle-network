@@ -27,12 +27,17 @@ class Network(TypedDict):
 
 
 def copy_network(original: Network) -> Network:
-    new: Network = {
-        "demand_covered": original["demand_covered"],
-        "graph": copy.deepcopy(original["graph"]),
-    }
+    new = copy.deepcopy(original)
     assert id(new) != id(original)
+    # assert id(new["demand_covered"]) != id(original["demand_covered"]) # this fails
     assert id(new["graph"]) != id(original["graph"])
+    return new
+
+
+def copy_pop(original: Population) -> Population:
+    new = copy.deepcopy(original)
+    assert new == original
+    assert id(new) != id(original)
     return new
 
 
@@ -76,12 +81,13 @@ def run(
     start_pop: Population,
     iterations: int,
     mutation_probability: float,
+    m: int,
     demand_matrix: gdf,
     seed_points: gdf,
     grid: gdf,
 ) -> Dict[int, Population]:
     return _genetic_algorithm(
-        start_pop, iterations, mutation_probability, demand_matrix, seed_points, grid
+        start_pop, iterations, mutation_probability, m, demand_matrix, seed_points, grid
     )
 
 
@@ -92,6 +98,7 @@ def _genetic_algorithm(
     start_pop: Population,
     iterations: int,
     mutation_probability: float,
+    m: int,
     demand_matrix: gdf,
     seed_points: gdf,
     grid: gdf,
@@ -102,7 +109,7 @@ def _genetic_algorithm(
     gens = {}
     assert id(pop) == id(start_pop)
     while i < iterations:  # or until some other convergence criteria
-        parents = _selection(n, pop)
+        parents = _reproduction(n, m, pop)
         assert id(parents) != id(pop)
         # children = _crossover(n, parents)
         # assert id(children) != id(parents)
@@ -111,9 +118,10 @@ def _genetic_algorithm(
         # assert id(evaluated) != id(children) # this fails, why? demand should be updated
         mutated = _mutation(parents, seed_points, grid, mutation_probability)
         evaluated = _evaluation(mutated, demand_matrix)
-        pop = evaluated
+        selected = _selection(evaluated, n)
+        gens[i] = selected
+        pop = selected
         assert id(pop) != id(start_pop)
-        gens[i] = pop
         i = i + 1
     return gens
 
@@ -129,7 +137,7 @@ def _genetic_algorithm(
 # KEY FUNCTIONS
 
 
-def _selection(n: int, pop: Population) -> Population:
+def _reproduction(n: int, m: int, pop: Population) -> Population:
     """
     Selects the fittest networks from a population to breed the next generation.
     Networks with higher demand have a higher probability of being chosen.
@@ -137,14 +145,15 @@ def _selection(n: int, pop: Population) -> Population:
 
     Parameters:
     n (int): The number of networks to choose for the mating pool.
+    m (int): Scalar to multiply number of chosen networks.
     pop (Population): The population of networks to choose parent networks from.
 
     Returns:
-    A 'mating pool' population of {n} networks.
+    A 'mating pool' population of {n * m} networks.
     """
-    selected_ids = _select_ids(n, pop)
+    selected_ids = _select_ids(n, m, pop)
     mating_pool: Population = {
-        new_id: pop[old_id] for new_id, old_id in enumerate(selected_ids)
+        new_id: copy_network(pop[old_id]) for new_id, old_id in enumerate(selected_ids)
     }
     assert id(mating_pool) != id(pop)
     return mating_pool
@@ -249,7 +258,29 @@ def _evaluation(pop: Population, demand_matrix) -> Population:
     return _recalculcate_fitness(pop, demand_matrix)
 
 
-# SELECTION HELPERS
+def _selection(pop: Population, n: int) -> Population:
+    """
+    Selects n networks for the next generation.
+    Either this or _reproduction should choose completely randomly
+    (not favour the best ones). But maybe we should keep the very
+    best one?
+
+    Parameters:
+    pop (Population): The population to choose n networks from
+    n (int): The number of networks to choose
+
+    Returns:
+    Population of n networks
+    """
+    nw_ids = [id for id in pop]
+    selected_ids = RNG.choice(nw_ids, size=n, replace=False).tolist()
+    selected: Population = {
+        new_id: pop[old_id] for new_id, old_id in enumerate(selected_ids)
+    }
+    return selected
+
+
+# REPRODUCTION HELPERS
 
 
 def _sum_demand_coverage(pop: Population) -> float:
@@ -262,10 +293,10 @@ def _get_probabilities(pop: Population) -> np.ndarray:
     return _normalise(demand_shares)
 
 
-def _select_ids(n: int, pop: Population) -> List[int]:
+def _select_ids(n: int, m: int, pop: Population) -> List[int]:
     demand_shares = _get_probabilities(pop)
     nw_ids = [id for id in pop]
-    selected_ids = RNG.choice(nw_ids, size=n, replace=True, p=demand_shares)
+    selected_ids = RNG.choice(nw_ids, size=n * m, replace=True, p=demand_shares)
     return selected_ids.tolist()
 
 

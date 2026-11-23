@@ -86,7 +86,12 @@ bcnwplt.plot_population_dict(
 # ## Run GA
 
 # %%
-generations = ga.run(start_pop_new, 10, 1.0, demand_matrix, seed_points, grid)
+N_ITE = 20  # iterations
+MUTATE_PROB = 1.0
+M = 50
+generations = ga.run(
+    start_pop_new, N_ITE, MUTATE_PROB, M, demand_matrix, seed_points, grid
+)
 
 # %% [markdown]
 # ### Check last generation
