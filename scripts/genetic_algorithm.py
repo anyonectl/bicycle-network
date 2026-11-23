@@ -83,7 +83,7 @@ bcnwplt.plot_population_dict(
 # ## Run GA
 
 # %%
-generations = ga.run(start_pop, 10, demand_matrix, seed_points, grid)
+generations = ga.run(start_pop, 10, 1.0, demand_matrix, seed_points, grid)
 
 # %% [markdown]
 # ### Check last generation
@@ -100,7 +100,7 @@ bcnwplt.plot_population_dict(
     demand_type="absolute",
     save=True,
     output_path=PLOT_PATH,
-    filename="finalpop_onlymutation",
+    filename="finalpop_allmutated",
     gen=n_gens,
 )
 
@@ -129,6 +129,6 @@ print(final_pop[0])
 # ## Save generations as JSON
 
 # %%
-filename = "generations_261119"
+filename = "generations_allmutated_261119"
 with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
     json.dump(generations, json_file, indent=4)
