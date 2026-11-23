@@ -36,6 +36,39 @@ def copy_network(original: Network) -> Network:
     return new
 
 
+def network_to_jsonable(nw: Network) -> dict:
+    return {
+        "demand_covered": float(nw["demand_covered"]),
+        "graph": nx.node_link_data(nw["graph"], edges="edges"),
+    }
+
+
+def generations_to_jsonable(gens: Dict[int, Population]) -> dict:
+    return {
+        str(gen): {str(nw_id): network_to_jsonable(nw) for nw_id, nw in pop.items()}
+        for gen, pop in gens.items()
+    }
+
+
+def jsonable_to_network(data: dict) -> Network:
+    nw: Network = {
+        "demand_covered": float(data["demand_covered"]),
+        "graph": nx.node_link_graph(data["graph"]),
+    }
+    return nw
+
+
+def jsonable_to_pop(data: dict) -> Population:
+    pop: Population = {
+        int(nw_id): jsonable_to_network(nw) for nw_id, nw in data.items()
+    }
+    return pop
+
+
+def jsonable_to_gens(data: dict) -> Dict[int, Population]:
+    return {int(pop_id): jsonable_to_pop(pop) for pop_id, pop in data.items()}
+
+
 # MAIN
 
 
@@ -470,14 +503,16 @@ def _mutate(nw: Network, seed_points: gdf, grid: gdf) -> Network:
     match action:
         case "add":
             new_nw = _add_edge(nw, seed_points)
+            assert id(nw) != id(new_nw)
         case "remove":
             new_nw = _remove_edge(nw, seed_points, grid)
+            assert id(nw) != id(new_nw)
         case "replace":
             new_nw = _replace_edge(nw, seed_points, grid)
+            assert id(nw) != id(new_nw)
         case _:
-            new_nw = nw
+            raise NotImplementedError
     assert nx.is_connected(new_nw["graph"])
-    assert id(nw) != id(new_nw)
     return new_nw
 
 
@@ -564,11 +599,11 @@ def _remove_edge(nw: Network, seed_points, grid) -> Network:
     edges = nw["graph"].edges
     bridges = set(nx.bridges(nw["graph"]))
     edge_pool = edges - bridges  # set difference
+    mutated_nw = copy_network(nw)
     if len(edge_pool) == 0:
-        return nw
+        return mutated_nw
     fst, snd = tuple(RNG.choice(list(edge_pool)))  # type: ignore
     u, v = str(fst), str(snd)
-    mutated_nw = copy_network(nw)
     assert id(nw) != id(mutated_nw)
     mutated_nw["graph"].remove_edge(u, v)
     assert nx.is_connected(mutated_nw["graph"])
@@ -582,8 +617,8 @@ def _remove_edge(nw: Network, seed_points, grid) -> Network:
 
 def _replace_edge(nw: Network, seed_points: gdf, grid) -> Network:
     """ """
-    nw = _remove_edge(nw, seed_points, grid)
-    return _add_edge(nw, seed_points)
+    new_nw = _remove_edge(nw, seed_points, grid)
+    return _add_edge(new_nw, seed_points)
 
 
 # EVALUATION HELPERS
@@ -593,7 +628,7 @@ def _recalculcate_fitness(pop: Population, demand_matrix) -> Population:
     for nw in pop.values():
         new_nw = copy_network(nw)
         new_nw["demand_covered"] = dmnd.network_demand_coverage(
-            _get_node_set(new_nw), demand_matrix
+            new_nw["graph"].nodes, demand_matrix
         )
     return pop
 
@@ -610,13 +645,6 @@ def json_to_pop(data) -> Population:
         for nw_id, nw in data.items()
     }
     return pop
-
-
-def json_to_gens(data) -> Dict[int, Population]:
-    gens: Dict[int, Population] = {
-        int(pop_id): json_to_pop(pop) for pop_id, pop in data.items()
-    }
-    return gens
 
 
 # VISUALISATION
