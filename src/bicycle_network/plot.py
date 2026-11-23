@@ -1,10 +1,12 @@
 from math import ceil
+from matplotlib.collections import LineCollection
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import colormaps as mplcm
 from geopandas import GeoDataFrame as gdf
 from shapely import LineString
 from datetime import datetime as dt
+import networkx as nx
 
 
 def current_time() -> str:
@@ -105,6 +107,74 @@ def plot_population_dict(
         ax.set_ylim(ymin, ymax)
         ax.set_aspect("equal", adjustable="box")
         # ax.legend()
+        ax.set_title(f"Network {nw_id}, demand coverage: {demand_coverage:.2f} %")
+        ax.set_axis_off()
+
+    for ax in axes[n_pop:]:
+        ax.set_axis_off()
+
+    fig.suptitle(f"Gen. {gen}", fontsize=16)
+    plt.tight_layout()
+
+    if save:
+        gen_str = f"gen{gen}"
+        plt.savefig(
+            f"{output_path}{filename}_{gen_str}_{current_time()}.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+    plt.show()
+
+
+def plot_population_nx(
+    pop,
+    seed_points: gdf,
+    grid: gdf,
+    demand_type: str,
+    save=False,
+    output_path="../results/plots/",
+    filename="pop",
+    title="",
+    gen: int = 0,
+):
+    n_pop = len(pop)
+    n_cols = 4
+    n_rows = ceil(n_pop / n_cols)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 5 * n_rows))
+    axes = np.atleast_1d(axes).ravel()
+    cmap = mplcm["tab10"]
+    id_to_centroid = seed_points.set_index("id")["geometry"].to_dict()
+    xmin, ymin, xmax, ymax = grid.total_bounds
+
+    for i, (nw_id, nw) in enumerate(pop.items()):
+        ax = axes[i]
+        graph = nw["graph"]
+        demand_coverage = nw["demand_covered"]
+        grid.boundary.plot(ax=ax, color="grey", lw=1)
+        seed_points["geometry"].plot(ax=ax, color="black", markersize=1)
+        components = list(nx.connected_components(graph))
+        colors = cmap(np.linspace(0, 1, max(len(components), 1)))
+
+        for j, component in enumerate(components):
+            segments = []
+            for u, v in graph.subgraph(component).edges:
+                p = id_to_centroid[u]
+                q = id_to_centroid[v]
+                segments.append([(p.x, p.y), (q.x, q.y)])
+            if not segments:
+                continue
+            ax.add_collection(
+                LineCollection(
+                    segments,
+                    colors=[colors[j]],
+                    linewidths=5,
+                    alpha=0.5,
+                )
+            )
+
+        ax.set_xlim(xmin, xmax)
+        ax.set_ylim(ymin, ymax)
+        ax.set_aspect("equal", adjustable="box")
         ax.set_title(f"Network {nw_id}, demand coverage: {demand_coverage:.2f} %")
         ax.set_axis_off()
 
