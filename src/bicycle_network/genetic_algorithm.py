@@ -5,6 +5,9 @@ from geopandas import GeoDataFrame as gdf
 import bicycle_network.demand as dmnd
 import bicycle_network.plot as bcnwplt
 import bicycle_network.graph
+import networkx as nx
+from networkx.classes.graph import Graph
+import copy
 
 # Gene: a path consisting of several edges
 # Chromosome: a candidate solution (i.e. a network) consisting of genes
@@ -18,20 +21,19 @@ RNG: np.random.Generator = np.random.default_rng(seed=SEED)
 type Population = Dict[int, Network]
 
 
-# TODO Put in own module/class file with methods, i.e. get path, get nodes, get geoms etc
 class Network(TypedDict):
     demand_covered: float
-    paths: Dict[int, List[str]]  # irs/ips
+    graph: Graph  # irs/ips
 
 
 def copy_network(original: Network) -> Network:
-    copy: Network = {
+    new: Network = {
         "demand_covered": original["demand_covered"],
-        "paths": dict(original["paths"]),
+        "graph": copy.deepcopy(original["graph"]),
     }
-    assert id(copy) != id(original)
-    assert id(copy["paths"]) != id(original["paths"])
-    return copy
+    assert id(new) != id(original)
+    assert id(new["graph"]) != id(original["graph"])
+    return new
 
 
 # MAIN
@@ -178,8 +180,7 @@ def _mutation(
     mutated: Population = {}
     for nw_id, nw in pop.items():
         mutated[nw_id] = _mutate(nw, seed_points, grid) if mutate[nw_id] else nw
-        is_connected = bicycle_network.graph.is_connected(mutated[nw_id])
-        if not is_connected:
+        if not nx.is_connected(mutated[nw_id]["graph"]):
             print(f"see network id: {nw_id}")
             print("first plot: pop before mutation")
             bcnwplt.plot_population_dict(
@@ -464,7 +465,7 @@ def _mutate(nw: Network, seed_points: gdf, grid: gdf) -> Network:
     Returns:
     A mutated version of the input network.
     """
-    # assert bicycle_network.graph.is_connected(nw)
+    assert nx.is_connected(nw["graph"])
     action = str(RNG.choice(["add", "remove", "replace"], size=1)[0])
     match action:
         case "add":
@@ -475,7 +476,7 @@ def _mutate(nw: Network, seed_points: gdf, grid: gdf) -> Network:
             new_nw = _replace_edge(nw, seed_points, grid)
         case _:
             new_nw = nw
-    # assert bicycle_network.graph.is_connected(new_nw)
+    assert nx.is_connected(new_nw["graph"])
     assert id(nw) != id(new_nw)
     return new_nw
 
@@ -513,21 +514,22 @@ def _add_edge(nw: Network, seed_points: gdf) -> Network:
     8. Should this be its own path, or should it be a part of the path with the
         original chosen node? I guess it shouldn't matter?
     """
-    nodes_in_network = _get_node_set(nw)
+    nodes = nw["graph"].nodes
     chosen_node = ""
     node_pool = {}
     while len(node_pool) == 0:
-        chosen_node = str(RNG.choice(list(nodes_in_network)))
+        chosen_node = str(RNG.choice(nodes))  # type: ignore
         neighbours = set(
             seed_points.loc[seed_points["id"] == chosen_node, "neighbours"]
             .values[0]
             .values()  # type: ignore
         )
-        node_pool = neighbours - nodes_in_network  # set difference
+        node_pool = neighbours - nodes  # set difference
     new_node = str(RNG.choice(list(node_pool)))
+    assert new_node not in nw["graph"]
     mutated_nw = copy_network(nw)
-    n_paths = len(mutated_nw["paths"])
-    mutated_nw["paths"][n_paths] = [chosen_node, new_node]
+    assert id(nw) != id(mutated_nw)
+    mutated_nw["graph"].add_edge(chosen_node, new_node)
     assert id(nw) != id(mutated_nw)
     return mutated_nw
 
@@ -559,47 +561,22 @@ def _remove_edge(nw: Network, seed_points, grid) -> Network:
     Returns:
     A mutated version of the input network with one edge removed.
     """
-    edges = bicycle_network.graph.get_edge_set(nw)
-    bridges = bicycle_network.graph.get_bridges(nw)
+    edges = nw["graph"].edges
+    bridges = set(nx.bridges(nw["graph"]))
     edge_pool = edges - bridges  # set difference
     if len(edge_pool) == 0:
         return nw
-    fst, snd = tuple(RNG.choice(list(edge_pool)))
-    chosen_edge = (str(fst), str(snd))
-    path_id, u_idx = _find_edge(chosen_edge, nw)
+    fst, snd = tuple(RNG.choice(list(edge_pool)))  # type: ignore
+    u, v = str(fst), str(snd)
     mutated_nw = copy_network(nw)
     assert id(nw) != id(mutated_nw)
-    mutated_nw["paths"][path_id] = nw["paths"][path_id][: u_idx + 1]
-    n_paths = len(mutated_nw["paths"])
-    mutated_nw["paths"][n_paths] = nw["paths"][path_id][u_idx + 1 :]
-    removed_u = mutated_nw["paths"][path_id][-1]
-    removed_v = mutated_nw["paths"][n_paths][0]
-    assert (removed_u, removed_v) == chosen_edge
-    if not bicycle_network.graph.is_connected(mutated_nw):
+    mutated_nw["graph"].remove_edge(u, v)
+    assert nx.is_connected(mutated_nw["graph"])
+    if not nx.is_connected(mutated_nw["graph"]):
         print(f"nw: {nw}")
         print(f"mutated_nw: {mutated_nw}")
-        print(f"chosen edge: {chosen_edge}")
-        print(f"removed u: {removed_u}")
-        print(f"removed v: {removed_v}")
-        print(f"path_id: {path_id}")
-        print(f"u_idx: {u_idx}")
-        print(f"path that was divided: {nw["paths"][path_id]}")
-        print(f"new path 1: {mutated_nw["paths"][path_id]}")
-        print(f"new path 2: {mutated_nw["paths"][n_paths]}")
-        bcnwplt.plot_network(
-            nw,
-            seed_points,
-            grid,
-            save=True,
-            filename=f"connectivity_BEFORE_mutation_network_path{path_id}",
-        )
-        bcnwplt.plot_network(
-            mutated_nw,
-            seed_points,
-            grid,
-            save=True,
-            filename=f"connectivity_BEFORE_mutation_network_path{path_id}",
-        )
+        bcnwplt.plot_network(nw, seed_points, grid)
+        bcnwplt.plot_network(mutated_nw, seed_points, grid)
     return mutated_nw
 
 
@@ -628,7 +605,7 @@ def json_to_pop(data) -> Population:
     pop: Population = {
         int(nw_id): {
             "demand_covered": nw["demand_covered"],
-            "paths": {int(path_id): path for path_id, path in nw["paths"].items()},
+            "graph": nx.Graph(bicycle_network.graph.get_edge_list(nw["paths"])),
         }
         for nw_id, nw in data.items()
     }
@@ -640,20 +617,6 @@ def json_to_gens(data) -> Dict[int, Population]:
         int(pop_id): json_to_pop(pop) for pop_id, pop in data.items()
     }
     return gens
-
-
-# def json_to_gens(data) -> Dict[int, Population]:
-#     gens: Dict[int, Population] = {
-#         int(pop_id): {
-#             int(nw_id): {
-#                 "demand_covered": nw["demand_covered"],
-#                 "paths": {int(path_id): path for path_id, path in nw["paths"].items()},
-#             }
-#             for nw_id, nw in pop.items()
-#         }
-#         for pop_id, pop in data.items()
-#     }
-#     return gens
 
 
 # VISUALISATION
