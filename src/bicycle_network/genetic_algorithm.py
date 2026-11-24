@@ -29,14 +29,12 @@ class Network(TypedDict):
 def copy_network(original: Network) -> Network:
     new = copy.deepcopy(original)
     assert id(new) != id(original)
-    # assert id(new["demand_covered"]) != id(original["demand_covered"]) # this fails
     assert id(new["graph"]) != id(original["graph"])
     return new
 
 
 def copy_pop(original: Population) -> Population:
     new = copy.deepcopy(original)
-    assert new == original
     assert id(new) != id(original)
     return new
 
@@ -656,12 +654,12 @@ def _replace_edge(nw: Network, seed_points: gdf, grid) -> Network:
 
 
 def _recalculcate_fitness(pop: Population, demand_matrix) -> Population:
-    for nw in pop.values():
-        new_nw = copy_network(nw)
-        new_nw["demand_covered"] = dmnd.network_demand_coverage(
-            new_nw["graph"].nodes, demand_matrix
+    new_pop = copy_pop(pop)
+    for nw_id, nw in new_pop.items():
+        nw["demand_covered"] = dmnd.network_demand_coverage(
+            nw["graph"].nodes, demand_matrix
         )
-    return pop
+    return new_pop
 
 
 # OTHER HELPERS
