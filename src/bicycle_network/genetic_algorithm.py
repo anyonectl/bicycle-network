@@ -109,13 +109,13 @@ def _genetic_algorithm(
     while i < iterations:  # or until some other convergence criteria
         parents = _reproduction(n, m, pop)
         assert id(parents) != id(pop)
-        # children = _crossover(n, parents)
-        # assert id(children) != id(parents)
-        # mutated = _mutation(children)
+        children = _crossover(n, parents)
+        assert id(children) != id(parents)
         # evaluated = _evaluation(children, demand_matrix)
-        # assert id(evaluated) != id(children) # this fails, why? demand should be updated
-        mutated = _mutation(parents, seed_points, grid, mutation_probability)
+        mutated = _mutation(children, seed_points, grid, mutation_probability)
+        assert id(mutated) != id(children)
         evaluated = _evaluation(mutated, demand_matrix)
+        assert id(evaluated) != id(mutated)
         selected = _selection(evaluated, n)
         gens[i] = selected
         pop = selected
