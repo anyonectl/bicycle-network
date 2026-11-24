@@ -466,61 +466,6 @@ def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
     raise NotImplementedError
 
 
-def _inter_intra_crossover(
-    parent_A: Network,
-    parent_B: Network,
-    shared_nodes: Set[str],
-    rng: np.random.Generator,
-) -> Tuple[Network, Network]:
-    """
-    Exchanges path sections from two paths with at least one shared node
-    from two parent networks to create two child networks.
-    Assumes that {parent_A} and {parent_B} has at least one shared node.
-
-    Parameters:
-    parent A (Network): First parent network.
-    parent B (Network): Second parent network.
-    shared_nodes (set): Set of node ids shared by the two networks.
-
-    Returns:
-    A pair of child networks.
-
-    For each parent pair (inspired by Mesbah 2012):
-    1. Assume that each parent is a connected network
-    2. Determine shared vertices (edges) between the parents
-    3. Randomly choose 1 shared vertex*
-    4. Swap all edges that precede the selected shared vertex
-    5. This produces 2 child solutions that are both connected
-
-    *if no shared vertex exists, this parent pair doesn't produce new child solutions
-    """
-    # Randomly choose 1 shared vertex
-    cut_node = str(rng.choice(sorted(shared_nodes)))
-
-    # Find the paths that cut_node is in (naive method)
-    cut_idx_A, path_id_A, path_A = _find_node(cut_node, parent_A)
-    cut_idx_B, path_id_B, path_B = _find_node(cut_node, parent_B)
-    assert parent_A["paths"][path_id_A] == path_A, (
-        parent_B["paths"][path_id_A] == path_B
-    )
-
-    # Exchange
-    new_A, new_B = _exchange_path_sections(cut_idx_A, cut_idx_B, path_A, path_B)
-    assert id(new_A) != id(path_A), id(new_B) != id(path_B)
-
-    # Put new paths into child networks
-    child_A = copy_network(parent_A)
-    child_B = copy_network(parent_B)
-    child_A["paths"][path_id_A] = new_A
-    child_B["paths"][path_id_B] = new_B
-    assert id(parent_A["paths"][path_id_A]) != id(new_A), id(
-        parent_B["paths"][path_id_A]
-    ) != id(new_B)
-    assert id(parent_A) != id(child_A), id(parent_B) != id(child_B)
-
-    return (child_A, child_B)
-
-
 def _get_shared_cut_nodes(graph_A: Graph, graph_B: Graph) -> Set[str]:
     shared_nodes = _get_shared_nodes(graph_A, graph_B)
     cut_nodes_A = set(nx.articulation_points(graph_A))
@@ -541,73 +486,6 @@ def _get_shared_nodes(graph_A: Graph, graph_B: Graph) -> Set[str]:
     """
     # use set intersection
     return set(graph_A.nodes) & set(graph_B.nodes)
-
-
-def _find_node(node: str, nw: Network) -> Tuple[int, int, List[str]]:
-    """
-    Finds {node} and its path in {nw}.
-    Only gets the first occurrence of the node.
-    Naive method.
-
-    Parameters:
-    node (str): The node to search for.
-    nw (Network): The network to search in.
-
-    Returns:
-    A tuple containing 1) the node's index in its path, 1) the path id, 2) the path itself.
-    """
-    node_index = -1
-    path_id = -1
-    path_list = []
-    for i, path in nw["paths"].items():
-        if node in path:
-            node_index = path.index(node)
-            path_id = i
-            path_list = path
-            break
-    return (node_index, path_id, path_list)
-
-
-def _find_edge(edge: Tuple[str, str], nw: Network) -> Tuple[int, int]:
-    """
-    Finds {edge} and its path in {nw}. Naive method.
-
-    Parameters:
-    node (str): The node to search for.
-    nw (Network): The network to search in.
-
-    Returns:
-    A tuple containing 1) the node's index in its path, 1) the path id, 2) the path itself.
-    """
-    u, v = edge
-    for path_id, path in nw["paths"].items():
-        if u in path and v in path:
-            u_idx = path.index(u)
-            v_idx = path.index(v)
-            diff = v_idx - u_idx
-            if diff == 1:
-                return (path_id, u_idx)
-    raise KeyError
-
-
-def _exchange_path_sections(
-    index_A: int, index_B: int, path_A: List[str], path_B: List[str]
-) -> Tuple[List[str], List[str]]:
-    """
-    Creates two new paths from two paths by exchanging sections at index.
-
-    Parameters:
-    index_A (int): The index to cut in {path_A}
-    index_B (int): The index to cut in {path_B}
-    path_A (List[str]): First path to exchange sections
-    path_B (List[str]): Second path to exchange sections
-
-    Returns:
-    A tuple containing two new paths.
-    """
-    new_A = path_A[:index_A] + path_B[index_B:]
-    new_B = path_B[:index_B] + path_A[index_A:]
-    return (new_A, new_B)
 
 
 # MUTATION HELPERS
