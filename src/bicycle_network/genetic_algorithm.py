@@ -14,9 +14,6 @@ import copy
 # Population: a collection of candidate solutions
 # Generation: the population in a given iteration of the genetic algorithm
 
-SEED: int = 3581054352
-RNG: np.random.Generator = np.random.default_rng(seed=SEED)
-
 # TYPE ALIASES
 type Population = Dict[int, Network]
 
@@ -80,12 +77,26 @@ def run(
     iterations: int,
     mutation_probability: float,
     m: int,
+    budget: int,
+    max_edges: int,
     demand_matrix: gdf,
     seed_points: gdf,
     grid: gdf,
+    rng: np.random.Generator,
+    penalty: float = 0.2,
 ) -> Dict[int, Population]:
     return _genetic_algorithm(
-        start_pop, iterations, mutation_probability, m, demand_matrix, seed_points, grid
+        start_pop,
+        iterations,
+        mutation_probability,
+        m,
+        demand_matrix,
+        budget,
+        max_edges,
+        penalty,
+        seed_points,
+        grid,
+        rng,
     )
 
 
@@ -98,8 +109,12 @@ def _genetic_algorithm(
     mutation_probability: float,
     m: int,
     demand_matrix: gdf,
+    budget: int,
+    max_edges: int,
+    penalty: float,
     seed_points: gdf,
     grid: gdf,
+    rng: np.random.Generator,
 ) -> Dict[int, Population]:
     pop = start_pop
     n = len(pop)
@@ -107,18 +122,19 @@ def _genetic_algorithm(
     gens = {}
     assert id(pop) == id(start_pop)
     while i < iterations:  # or until some other convergence criteria
-        parents = _reproduction(n, m, pop)
+        parents = _reproduction(n, m, pop, rng)
         assert id(parents) != id(pop)
-        # children = _crossover(n, parents)
-        # assert id(children) != id(parents)
-        # mutated = _mutation(children)
-        # evaluated = _evaluation(children, demand_matrix)
-        # assert id(evaluated) != id(children) # this fails, why? demand should be updated
-        mutated = _mutation(parents, seed_points, grid, mutation_probability)
-        evaluated = _evaluation(mutated, demand_matrix)
-        selected = _selection(evaluated, n)
-        gens[i] = selected
-        pop = selected
+        children = _crossover(n, parents, rng)
+        assert id(children) != id(parents)
+        mutated = _mutation(children, seed_points, grid, rng, mutation_probability)
+        assert id(mutated) != id(children)
+        evaluated = _evaluation(mutated, demand_matrix, budget, max_edges, penalty)
+        assert id(evaluated) != id(mutated)
+        # selected = _selection(evaluated, n)
+        # gens[i] = selected
+        # pop = selected
+        gens[i] = evaluated
+        pop = evaluated
         assert id(pop) != id(start_pop)
         i = i + 1
     return gens
@@ -135,7 +151,9 @@ def _genetic_algorithm(
 # KEY FUNCTIONS
 
 
-def _reproduction(n: int, m: int, pop: Population) -> Population:
+def _reproduction(
+    n: int, m: int, pop: Population, rng: np.random.Generator
+) -> Population:
     """
     Selects the fittest networks from a population to breed the next generation.
     Networks with higher demand have a higher probability of being chosen.
@@ -149,7 +167,7 @@ def _reproduction(n: int, m: int, pop: Population) -> Population:
     Returns:
     A 'mating pool' population of {n * m} networks.
     """
-    selected_ids = _select_ids(n, m, pop)
+    selected_ids = _select_ids(n, m, pop, rng)
     mating_pool: Population = {
         new_id: copy_network(pop[old_id]) for new_id, old_id in enumerate(selected_ids)
     }
@@ -164,7 +182,7 @@ def _evolution(pop: Population) -> Population:
     return pop
 
 
-def _crossover(n: int, mating_pool: Population) -> Population:
+def _crossover(n: int, mating_pool: Population, rng: np.random.Generator) -> Population:
     """
     Creates a child population by randomly choosing pairs of parent networks from
     the mating pool and performing crossover on them.
@@ -181,17 +199,19 @@ def _crossover(n: int, mating_pool: Population) -> Population:
     i = 0
     while i < n:
         # parent_ids = list(mating_pool.keys())
-        id_A, id_B = _choose_parents(parent_ids)
+        id_A, id_B = _choose_parents(parent_ids, rng)
         parent_A = mating_pool[id_A]
         parent_B = mating_pool[id_B]
-        shared_nodes = _get_shared_nodes(parent_A, parent_B)
-        if shared_nodes is None:
+        feasible_nodes = _get_shared_cut_nodes(parent_A["graph"], parent_B["graph"])
+        if not feasible_nodes:
             continue
         # remove_A, remove_B = mating_pool.pop(id_A), mating_pool.pop(id_B)
         # assert remove_A == parent_A, remove_B == parent_B
-        child_A, child_B = _inter_intra_crossover(parent_A, parent_B, shared_nodes)
-        assert id(child_A) != id(parent_A)
-        assert id(child_B) != id(parent_B)
+        childg_A, childg_B = _inter_crossover(
+            parent_A["graph"], parent_B["graph"], feasible_nodes, rng
+        )
+        child_A: Network = {"demand_covered": 0.0, "graph": childg_A}
+        child_B: Network = {"demand_covered": 0.0, "graph": childg_B}
         child_pop[i] = child_A
         child_pop[i + 1] = child_B
         i = i + 2
@@ -199,7 +219,11 @@ def _crossover(n: int, mating_pool: Population) -> Population:
 
 
 def _mutation(
-    pop: Population, seed_points: gdf, grid: gdf, mutation_probability=0.3
+    pop: Population,
+    seed_points: gdf,
+    grid: gdf,
+    rng: np.random.Generator,
+    mutation_probability=0.3,
 ) -> Population:
     """
     Randomly mutates a random selection of networks in the population
@@ -211,7 +235,7 @@ def _mutation(
     Returns:
     A new population containing original and mutated networks.
     """
-    mutate = np.random.choice(
+    mutate = rng.choice(
         a=[True, False],
         size=len(pop),
         replace=True,
@@ -219,7 +243,7 @@ def _mutation(
     ).tolist()
     mutated: Population = {}
     for nw_id, nw in pop.items():
-        mutated[nw_id] = _mutate(nw, seed_points, grid) if mutate[nw_id] else nw
+        mutated[nw_id] = _mutate(nw, seed_points, grid, rng) if mutate[nw_id] else nw
         if not nx.is_connected(mutated[nw_id]["graph"]):
             print(f"see network id: {nw_id}")
             print("first plot: pop before mutation")
@@ -248,15 +272,17 @@ def _mutation(
     return mutated
 
 
-def _evaluation(pop: Population, demand_matrix) -> Population:
+def _evaluation(
+    pop: Population, demand_matrix, budget, max_edges, penalty
+) -> Population:
     """
     1. Calculate the percentage of demand covered for each network in the population.
     2. Choose only the n fittest? (Not now - For now, let's just do the above)
     """
-    return _recalculcate_fitness(pop, demand_matrix)
+    return _recalculcate_fitness(pop, demand_matrix, budget, max_edges, penalty)
 
 
-def _selection(pop: Population, n: int) -> Population:
+def _selection(pop: Population, n: int, rng) -> Population:
     """
     Selects n networks for the next generation.
     Either this or _reproduction should choose completely randomly
@@ -271,7 +297,7 @@ def _selection(pop: Population, n: int) -> Population:
     Population of n networks
     """
     nw_ids = [id for id in pop]
-    selected_ids = RNG.choice(nw_ids, size=n, replace=False).tolist()
+    selected_ids = rng.choice(nw_ids, size=n, replace=False).tolist()
     selected: Population = {
         new_id: pop[old_id] for new_id, old_id in enumerate(selected_ids)
     }
@@ -291,10 +317,15 @@ def _get_probabilities(pop: Population) -> np.ndarray:
     return _normalise(demand_shares)
 
 
-def _select_ids(n: int, m: int, pop: Population) -> List[int]:
+def _select_ids(
+    n: int,
+    m: int,
+    pop: Population,
+    rng: np.random.Generator,
+) -> List[int]:
     demand_shares = _get_probabilities(pop)
     nw_ids = [id for id in pop]
-    selected_ids = RNG.choice(nw_ids, size=n * m, replace=True, p=demand_shares)
+    selected_ids = rng.choice(nw_ids, size=n * m, replace=True, p=demand_shares)
     return selected_ids.tolist()
 
 
@@ -309,7 +340,7 @@ def _normalise(ls: List[float]) -> np.ndarray:
 # CROSSOVER HELPERS
 
 
-def _choose_parents(parent_ids: List[int]) -> Tuple[int, int]:
+def _choose_parents(parent_ids: List[int], rng: np.random.Generator) -> Tuple[int, int]:
     """
     Randomly chooses two ids of parent networks from the mating pool to be
     used for crossover.
@@ -320,7 +351,7 @@ def _choose_parents(parent_ids: List[int]) -> Tuple[int, int]:
     Returns:
     A pair of network ids pointing to the chosen parent networks in {pop}.
     """
-    chosen_ids = RNG.choice(parent_ids, size=2, replace=False)
+    chosen_ids = rng.choice(parent_ids, size=2, replace=False)
     a = int(chosen_ids[0])
     b = int(chosen_ids[1])
     return a, b
@@ -339,23 +370,88 @@ def _choose_single_parent(pop: Population) -> Network | None:
     """
 
 
-def _inter_crossover(
-    parents: Tuple[Network, Network],
-) -> Tuple[Network, Network] | None:
+def _decompose_at(v: str, G: Graph) -> List[Graph]:
     """
-    Performs inter-string crossover by exchanging two complete paths
-    between two parent networks to create two child networks.
+    Decompose a connected Networkx graph into several connected
+    components by removing a cut vertex {v} and then
+    re-introducing {v} to all subgraphs.
+
+    Paramters:
+    v (str): Cut vertex/articulation point in G.
+    G (Graph): Connected Networkx graph.
+
+    Returns:
+    List of subgraphs that share node v.
+    """
+    disconnected = G.copy()
+    disconnected.remove_node(v)
+    connected_components = nx.connected_components(disconnected)
+    return [G.subgraph(comp | {v}).copy() for comp in connected_components]
+    # shouldn't use copy() for subgraph views - create them with a function instead...
+    # see networkx docs for subgraph
+
+
+def _inter_crossover(
+    graph_A: Graph,
+    graph_B: Graph,
+    cut_nodes: Set[str],
+    rng: np.random.Generator,
+) -> Tuple[Graph, Graph]:
+    """
+    Performs inter-string crossover by exchanging graph partitions
+    between two parent networks to create two child networks. The
+    partition node at which to cut is chosen randomly from a
+    feasible set of cut vertices shared between both parent
+    networks.
 
     Parameters:
-    parents (Tuple[Network, Network]): Pair of parents to exchange paths between.
+    parent A (Network): First parent network.
+    parent B (Network): Second parent network.
+    cut_nodes (set): Set of cut vertices shared between both parent networks.
 
     Returns:
     A pair of child networks.
     """
-    # CONNECTIVITY MUST BE ENFORCED
+    cut_node = str(rng.choice(sorted(cut_nodes)))
+    components_A = _decompose_at(cut_node, graph_A)
+    components_B = _decompose_at(cut_node, graph_B)
+    # i = rng.integers(0, len(components_A))
+    # j = rng.integers(0, len(components_B))
+    # stripped_A = nx.compose_all(
+    #     components_A[:i] + components_A[i + 1 :]
+    # )  # remove ith comp
+    # stripped_B = nx.compose_all(
+    #     components_B[:j] + components_B[j + 1 :]
+    # )  # remove jth comp
+    # childg_A = nx.compose(stripped_A, components_B[j])  # graph_A - ith comp + jth comp
+    # childg_B = nx.compose(stripped_B, components_A[i])  # graph_B - jth comp + ith comp
+    comp_a, comp_b = _choose_similar_components(components_A, components_B)
+    stripped_A = nx.compose_all([c for c in components_A if c is not comp_a])
+    stripped_B = nx.compose_all([c for c in components_B if c is not comp_b])
+    childg_A = nx.compose(stripped_A, comp_b)
+    childg_B = nx.compose(stripped_B, comp_a)
+    return (childg_A, childg_B)
 
 
-def _intra_crossover(parent: Network) -> Tuple[Network, Network] | None:
+def _choose_similar_components(A: List[Graph], B: List[Graph]) -> Tuple[Graph, Graph]:
+    """
+    Uses Jaccard similarity to choose a graph from each input list.
+    Most similar graph pair is returned.
+    """
+    chosen_pair = max(
+        ((a, b) for a in A for b in B),
+        key=_similarity_score,
+    )
+    return chosen_pair
+
+
+def _similarity_score(pair: Tuple[Graph, Graph]) -> float:
+    a = pair[0]
+    b = pair[1]
+    return len(set(a) & set(b)) / len(set(a) | set(b))
+
+
+def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
     """
     Performs intra-string crossover by exchanging path sections
     between two paths in the same parent network to create two child
@@ -367,153 +463,37 @@ def _intra_crossover(parent: Network) -> Tuple[Network, Network] | None:
     Returns:
     A pair of child networks.
     """
+    raise NotImplementedError
 
 
-def _inter_intra_crossover(
-    parent_A: Network, parent_B: Network, shared_nodes: Set[str]
-) -> Tuple[Network, Network]:
-    """
-    Exchanges path sections from two paths with at least one shared node
-    from two parent networks to create two child networks.
-    Assumes that {parent_A} and {parent_B} has at least one shared node.
-
-    Parameters:
-    parent A (Network): First parent network.
-    parent B (Network): Second parent network.
-    shared_nodes (set): Set of node ids shared by the two networks.
-
-    Returns:
-    A pair of child networks.
-
-    For each parent pair (inspired by Mesbah 2012):
-    1. Assume that each parent is a connected network
-    2. Determine shared vertices (edges) between the parents
-    3. Randomly choose 1 shared vertex*
-    4. Swap all edges that precede the selected shared vertex
-    5. This produces 2 child solutions that are both connected
-
-    *if no shared vertex exists, this parent pair doesn't produce new child solutions
-    """
-    # Randomly choose 1 shared vertex
-    cut_node = str(RNG.choice(list(shared_nodes)))
-
-    # Find the paths that cut_node is in (naive method)
-    cut_idx_A, path_id_A, path_A = _find_node(cut_node, parent_A)
-    cut_idx_B, path_id_B, path_B = _find_node(cut_node, parent_B)
-    assert parent_A["paths"][path_id_A] == path_A, (
-        parent_B["paths"][path_id_A] == path_B
-    )
-
-    # Exchange
-    new_A, new_B = _exchange_path_sections(cut_idx_A, cut_idx_B, path_A, path_B)
-    assert id(new_A) != id(path_A), id(new_B) != id(path_B)
-
-    # Put new paths into child networks
-    child_A = copy_network(parent_A)
-    child_B = copy_network(parent_B)
-    child_A["paths"][path_id_A] = new_A
-    child_B["paths"][path_id_B] = new_B
-    assert id(parent_A["paths"][path_id_A]) != id(new_A), id(
-        parent_B["paths"][path_id_A]
-    ) != id(new_B)
-    assert id(parent_A) != id(child_A), id(parent_B) != id(child_B)
-
-    return (child_A, child_B)
+def _get_shared_cut_nodes(graph_A: Graph, graph_B: Graph) -> Set[str]:
+    shared_nodes = _get_shared_nodes(graph_A, graph_B)
+    cut_nodes_A = set(nx.articulation_points(graph_A))
+    cut_nodes_B = set(nx.articulation_points(graph_B))
+    return shared_nodes & cut_nodes_A & cut_nodes_B  # set intersection
 
 
-def _get_node_set(nw: Network) -> Set[str]:
-    return set().union(*nw["paths"].values())
-
-
-def _get_shared_nodes(nw_A, nw_B) -> Set[str] | None:
+def _get_shared_nodes(graph_A: Graph, graph_B: Graph) -> Set[str]:
     """
     Finds and returns the shared nodes between two networks.
 
     Parameters:
-    nw_A (Network): First network.
-    nw_B (Network): Second network.
+    nw_A (Graph): First network's graph.
+    nw_B (Graph): Second network's graph.
 
     Returns:
     A set of shared nodes between the two networks if any exist, otherwise None.
     """
     # use set intersection
-    set_A = _get_node_set(nw_A)
-    set_B = _get_node_set(nw_B)
-    shared = set_A & set_B
-    return shared or None
-
-
-def _find_node(node: str, nw: Network) -> Tuple[int, int, List[str]]:
-    """
-    Finds {node} and its path in {nw}.
-    Only gets the first occurrence of the node.
-    Naive method.
-
-    Parameters:
-    node (str): The node to search for.
-    nw (Network): The network to search in.
-
-    Returns:
-    A tuple containing 1) the node's index in its path, 1) the path id, 2) the path itself.
-    """
-    node_index = -1
-    path_id = -1
-    path_list = []
-    for i, path in nw["paths"].items():
-        if node in path:
-            node_index = path.index(node)
-            path_id = i
-            path_list = path
-            break
-    return (node_index, path_id, path_list)
-
-
-def _find_edge(edge: Tuple[str, str], nw: Network) -> Tuple[int, int]:
-    """
-    Finds {edge} and its path in {nw}. Naive method.
-
-    Parameters:
-    node (str): The node to search for.
-    nw (Network): The network to search in.
-
-    Returns:
-    A tuple containing 1) the node's index in its path, 1) the path id, 2) the path itself.
-    """
-    u, v = edge
-    for path_id, path in nw["paths"].items():
-        if u in path and v in path:
-            u_idx = path.index(u)
-            v_idx = path.index(v)
-            diff = v_idx - u_idx
-            if diff == 1:
-                return (path_id, u_idx)
-    raise KeyError
-
-
-def _exchange_path_sections(
-    index_A: int, index_B: int, path_A: List[str], path_B: List[str]
-) -> Tuple[List[str], List[str]]:
-    """
-    Creates two new paths from two paths by exchanging sections at index.
-
-    Parameters:
-    index_A (int): The index to cut in {path_A}
-    index_B (int): The index to cut in {path_B}
-    path_A (List[str]): First path to exchange sections
-    path_B (List[str]): Second path to exchange sections
-
-    Returns:
-    A tuple containing two new paths.
-    """
-    new_A = path_A[:index_A] + path_B[index_B:]
-    new_B = path_B[:index_B] + path_A[index_A:]
-    return (new_A, new_B)
+    return set(graph_A.nodes) & set(graph_B.nodes)
 
 
 # MUTATION HELPERS
 
 
-def _mutate(nw: Network, seed_points: gdf, grid: gdf) -> Network:
+def _mutate(
+    nw: Network, seed_points: gdf, grid: gdf, rng: np.random.Generator
+) -> Network:
     """
     Mutate the given network either by adding, removing or
     replacing an edge. Whether to add, remove or replace is
@@ -528,16 +508,16 @@ def _mutate(nw: Network, seed_points: gdf, grid: gdf) -> Network:
     A mutated version of the input network.
     """
     assert nx.is_connected(nw["graph"])
-    action = str(RNG.choice(["add", "remove", "replace"], size=1)[0])
+    action = str(rng.choice(["add", "remove", "replace"], size=1)[0])
     match action:
         case "add":
-            new_nw = _add_edge(nw, seed_points)
+            new_nw = _add_edge(nw, seed_points, rng)
             assert id(nw) != id(new_nw)
         case "remove":
-            new_nw = _remove_edge(nw, seed_points, grid)
+            new_nw = _remove_edge(nw, seed_points, grid, rng)
             assert id(nw) != id(new_nw)
         case "replace":
-            new_nw = _replace_edge(nw, seed_points, grid)
+            new_nw = _replace_edge(nw, seed_points, grid, rng)
             assert id(nw) != id(new_nw)
         case _:
             raise NotImplementedError
@@ -545,7 +525,7 @@ def _mutate(nw: Network, seed_points: gdf, grid: gdf) -> Network:
     return new_nw
 
 
-def _add_edge(nw: Network, seed_points: gdf) -> Network:
+def _add_edge(nw: Network, seed_points: gdf, rng: np.random.Generator) -> Network:
     """
     Adds an edge to the network that connects an existing node
     in the network with a neighbouring node not already in the network.
@@ -582,14 +562,14 @@ def _add_edge(nw: Network, seed_points: gdf) -> Network:
     chosen_node = ""
     node_pool = {}
     while len(node_pool) == 0:
-        chosen_node = str(RNG.choice(nodes))  # type: ignore
+        chosen_node = str(rng.choice(nodes))  # type: ignore
         neighbours = set(
             seed_points.loc[seed_points["id"] == chosen_node, "neighbours"]
             .values[0]
             .values()  # type: ignore
         )
         node_pool = neighbours - nodes  # set difference
-    new_node = str(RNG.choice(list(node_pool)))
+    new_node = str(rng.choice(sorted(node_pool)))
     assert new_node not in nw["graph"]
     mutated_nw = copy_network(nw)
     assert id(nw) != id(mutated_nw)
@@ -598,7 +578,7 @@ def _add_edge(nw: Network, seed_points: gdf) -> Network:
     return mutated_nw
 
 
-def _remove_edge(nw: Network, seed_points, grid) -> Network:
+def _remove_edge(nw: Network, seed_points, grid, rng: np.random.Generator) -> Network:
     """
     Removes an edge from one of the paths of the input network.
     The edge is only removed if it is not a bridge, i.e. removing
@@ -631,7 +611,7 @@ def _remove_edge(nw: Network, seed_points, grid) -> Network:
     mutated_nw = copy_network(nw)
     if len(edge_pool) == 0:
         return mutated_nw
-    fst, snd = tuple(RNG.choice(list(edge_pool)))  # type: ignore
+    fst, snd = tuple(rng.choice(sorted(edge_pool)))  # type: ignore
     u, v = str(fst), str(snd)
     assert id(nw) != id(mutated_nw)
     mutated_nw["graph"].remove_edge(u, v)
@@ -644,21 +624,43 @@ def _remove_edge(nw: Network, seed_points, grid) -> Network:
     return mutated_nw
 
 
-def _replace_edge(nw: Network, seed_points: gdf, grid) -> Network:
+def _replace_edge(
+    nw: Network, seed_points: gdf, grid: gdf, rng: np.random.Generator
+) -> Network:
     """ """
-    new_nw = _remove_edge(nw, seed_points, grid)
-    return _add_edge(new_nw, seed_points)
+    new_nw = _remove_edge(nw, seed_points, grid, rng)
+    return _add_edge(new_nw, seed_points, rng)
 
 
 # EVALUATION HELPERS
 
 
-def _recalculcate_fitness(pop: Population, demand_matrix) -> Population:
+# TODO "demand_covered" in the data structure should be called "fitness" instead
+def _recalculcate_fitness(
+    pop: Population,
+    demand_matrix: gdf,
+    budget: int,
+    max_edges: int,
+    penalty_weight: float,
+) -> Population:
+    """
+    Calculates the fitness function for every network in a population.
+    Fitness function is demand_coverage, but if a network is over the budget
+    of max number of edges, then the score is penalised. Solutions that cross
+    the budget more are also penalised harder.
+    """
+    max_overspend = max_edges - budget
     new_pop = copy_pop(pop)
-    for nw_id, nw in new_pop.items():
-        nw["demand_covered"] = dmnd.network_demand_coverage(
-            nw["graph"].nodes, demand_matrix
-        )
+    for nw in new_pop.values():
+        demand_covered = dmnd.network_demand_coverage(nw["graph"].nodes, demand_matrix)
+        cost = nw["graph"].number_of_edges()
+        if cost > budget:
+            overspend_pct = ((cost - budget) / max_overspend) * 100
+            nw["demand_covered"] = max(
+                0.0, demand_covered - (penalty_weight * overspend_pct)
+            )
+        else:
+            nw["demand_covered"] = demand_covered
     return new_pop
 
 

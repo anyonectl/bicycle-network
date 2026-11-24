@@ -29,7 +29,7 @@ import geopandas as gpd
 ROOT = "../results/"
 PLOT_PATH = ROOT + "plots/"
 DATA_PATH = ROOT + "network-data/"
-GEN_FILE = f"{DATA_PATH}generations_allmutated_261123.json"
+GEN_FILE = f"{DATA_PATH}generations_261124.json"
 GRID_FILE = f"{DATA_PATH}grid.geojson"
 SEED_POINTS_FILE = f"{DATA_PATH}seed_points.geojson"
 
@@ -88,20 +88,20 @@ for pop in gens.values():
 # y-axis the percentage of demand met
 
 # %%
-bicycle_network.plot.scatter(gens, n_edges_dict, output_path=PLOT_PATH)
+bicycle_network.plot.scatter(gens, n_edges_dict, save=True, output_path=PLOT_PATH)
 
 # %%
-# for pop_id in [0, 10, 19]:
-#     bicycle_network.plot.plot_population_nx(
-#         gens[pop_id],
-#         seed_points,
-#         grid,
-#         demand_type="absolute",
-#         save=False,
-#         output_path=PLOT_PATH,
-#         filename="mutation",
-#         gen=pop_id,
-#     )
+for pop_id in [0, 10, 19]:
+    bicycle_network.plot.plot_population_nx(
+        gens[pop_id],
+        seed_points,
+        grid,
+        demand_type="absolute",
+        save=True,
+        output_path=PLOT_PATH,
+        filename="mutate_and_crossover",
+        gen=pop_id,
+    )
 
 # %% [markdown]
 # ### Violin plot

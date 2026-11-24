@@ -265,12 +265,12 @@ def scatter(gens, n_edges_dict, save=False, output_path="../results/plots/"):
     cbar = fig.colorbar(sm, ax=ax, pad=0.02)
     cbar.set_label("Generation")
 
-    xmin = 125
-    xmax = 140
-    ymin = 10
-    ymax = 30
-    ax.set_xlim(xmin, xmax)
-    ax.set_ylim(ymin, ymax)
+    # xmin = 125
+    # xmax = 140
+    # ymin = 10
+    # ymax = 30
+    # ax.set_xlim(xmin, xmax)
+    # ax.set_ylim(ymin, ymax)
     ax.set_xlabel("Number of edges")
     ax.set_ylabel("Demand coverage (%)")
     ax.set_title("Network performance by generation")
