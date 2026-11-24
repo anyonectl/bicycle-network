@@ -78,12 +78,12 @@ print(start_pop_old[0])
 # ## Run GA
 
 # %%
-N_ITE = 50  # iterations
-MUTATE_PROB = 0.5
-M = 20
+N_ITE = 100  # iterations
+MUTATE_PROB = 0.4
+M = 50
 MAX_EDGES = int(seed_points["neighbours"].apply(len).sum() // 2)
-BUDGET = MAX_EDGES // 4
-PENALTY = 1.6
+BUDGET = MAX_EDGES // 5
+PENALTY = 1.3
 
 generations = ga.run(
     start_pop_new,
@@ -136,17 +136,17 @@ for pop in generations.values():
 bcnwplt.scatter(generations, n_edges_dict, save=True, output_path=PLOT_PATH)
 
 # %%
-# for pop_id in [0, N_ITE // 2, N_ITE - 1]:
-#     bcnwplt.plot_population_nx(
-#         generations[pop_id],
-#         seed_points,
-#         grid,
-#         demand_type="absolute",
-#         save=True,
-#         output_path=PLOT_PATH,
-#         filename="mutate_and_crossover",
-#         gen=pop_id,
-#     )
+for pop_id in [0, N_ITE // 2, N_ITE - 1]:
+    bcnwplt.plot_population_nx(
+        generations[pop_id],
+        seed_points,
+        grid,
+        demand_type="absolute",
+        save=True,
+        output_path=PLOT_PATH,
+        filename="mutate_and_crossover",
+        gen=pop_id,
+    )
 
 # %% [markdown]
 # ### Violin plot
