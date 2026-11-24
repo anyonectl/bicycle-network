@@ -81,6 +81,9 @@ for pop in gens.values():
 
 # %% [markdown]
 # ## Plot
+
+# %% [markdown]
+# ### Scatter plot
 # Scatter plot with x-axis the total length of a network,
 # y-axis the percentage of demand met
 
@@ -88,14 +91,19 @@ for pop in gens.values():
 bicycle_network.plot.scatter(gens, n_edges_dict, output_path=PLOT_PATH)
 
 # %%
-for pop_id, pop in gens.items():
-    bicycle_network.plot.plot_population_nx(
-        pop,
-        seed_points,
-        grid,
-        demand_type="absolute",
-        save=False,
-        output_path=PLOT_PATH,
-        filename="mutation",
-        gen=pop_id,
-    )
+# for pop_id in [0, 10, 19]:
+#     bicycle_network.plot.plot_population_nx(
+#         gens[pop_id],
+#         seed_points,
+#         grid,
+#         demand_type="absolute",
+#         save=False,
+#         output_path=PLOT_PATH,
+#         filename="mutation",
+#         gen=pop_id,
+#     )
+
+# %% [markdown]
+# ### Violin plot
+# One violin per generation to show demand coverage distribution for all networks in the generation.
+# Should include at least 5 gens, maybe all if there aren't that many
