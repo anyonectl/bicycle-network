@@ -111,14 +111,15 @@ def _genetic_algorithm(
         assert id(parents) != id(pop)
         children = _crossover(n, parents)
         assert id(children) != id(parents)
-        # evaluated = _evaluation(children, demand_matrix)
         mutated = _mutation(children, seed_points, grid, mutation_probability)
         assert id(mutated) != id(children)
         evaluated = _evaluation(mutated, demand_matrix)
         assert id(evaluated) != id(mutated)
-        selected = _selection(evaluated, n)
-        gens[i] = selected
-        pop = selected
+        # selected = _selection(evaluated, n)
+        # gens[i] = selected
+        # pop = selected
+        gens[i] = evaluated
+        pop = evaluated
         assert id(pop) != id(start_pop)
         i = i + 1
     return gens
