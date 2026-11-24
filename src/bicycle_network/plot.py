@@ -1,10 +1,13 @@
 from math import ceil
+from matplotlib.collections import LineCollection
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import colormaps as mplcm
+from matplotlib.colors import Normalize
 from geopandas import GeoDataFrame as gdf
 from shapely import LineString
 from datetime import datetime as dt
+import networkx as nx
 
 
 def current_time() -> str:
@@ -124,34 +127,162 @@ def plot_population_dict(
     plt.show()
 
 
-def scatter(gens, n_edges_dict, save=False, output_path="../results/plots/"):
-    xmin = 100
-    xmax = 200
-    ymin = 0
-    ymax = 40
+def plot_population_nx(
+    pop,
+    seed_points: gdf,
+    grid: gdf,
+    demand_type: str,
+    save=False,
+    output_path="../results/plots/",
+    filename="pop",
+    title="",
+    gen: int = 0,
+):
+    n_pop = len(pop)
+    n_cols = 4
+    n_rows = ceil(n_pop / n_cols)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 5 * n_rows))
+    axes = np.atleast_1d(axes).ravel()
+    cmap = mplcm["tab10"]
+    id_to_centroid = seed_points.set_index("id")["geometry"].to_dict()
+    xmin, ymin, xmax, ymax = grid.total_bounds
 
-    # max_edges = 751
-    # max_demand = 100
+    for i, (nw_id, nw) in enumerate(pop.items()):
+        ax = axes[i]
+        graph = nw["graph"]
+        demand_coverage = nw["demand_covered"]
+        grid.boundary.plot(ax=ax, color="grey", lw=1)
+        seed_points["geometry"].plot(ax=ax, color="black", markersize=1)
+        components = list(nx.connected_components(graph))
+        colors = cmap(np.linspace(0, 1, max(len(components), 1)))
 
-    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-    for pop_id, pop in gens.items():
-        ax.scatter(
-            [n_edges_dict[nw_id] for nw_id in pop],  # number of edges in each network
-            [nw["demand_covered"] for nw in pop.values()],
-            label=f"Generation {pop_id}",
-            s=10,
+        for j, component in enumerate(components):
+            segments = []
+            for u, v in graph.subgraph(component).edges:
+                p = id_to_centroid[u]
+                q = id_to_centroid[v]
+                segments.append([(p.x, p.y), (q.x, q.y)])
+            if not segments:
+                continue
+            ax.add_collection(
+                LineCollection(
+                    segments,
+                    colors=[colors[j]],
+                    linewidths=5,
+                    alpha=0.5,
+                )
+            )
+
+        ax.set_xlim(xmin, xmax)
+        ax.set_ylim(ymin, ymax)
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_title(f"Network {nw_id}, demand coverage: {demand_coverage:.2f} %")
+        ax.set_axis_off()
+
+    for ax in axes[n_pop:]:
+        ax.set_axis_off()
+
+    fig.suptitle(f"Gen. {gen}", fontsize=16)
+    plt.tight_layout()
+
+    if save:
+        gen_str = f"gen{gen}"
+        plt.savefig(
+            f"{output_path}{filename}_{gen_str}_{current_time()}.png",
+            dpi=300,
+            bbox_inches="tight",
         )
-    ax.set_xlabel("Number of edges")
-    ax.set_ylabel("Demand coverage in %")
+    plt.show()
+
+
+def plot_network(
+    nw,
+    seed_points: gdf,
+    grid: gdf,
+    save=False,
+    output_path="../results/plots/",
+    filename="network",
+):
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    cmap = mplcm.get_cmap("tab10")
+    id_to_centroid = seed_points.set_index("id")["geometry"].to_dict()
+    xmin, ymin, xmax, ymax = grid.total_bounds
+
+    demand_coverage = nw["demand_covered"]
+    path_ids = list(nw["paths"].keys())
+    colors = cmap(np.linspace(0, 1, len(path_ids)))
+    grid.boundary.plot(ax=ax, color="grey", lw=1)
+    seed_points["geometry"].plot(ax=ax, color="black", markersize=1)
+
+    for j, (path_id, path) in enumerate(nw["paths"].items()):
+        coords = [id_to_centroid[point_id] for point_id in path]
+        if len(coords) < 2:  # TODO Need to fix this in the algorithm somehow...
+            print(f"Skipping path {path_id}: {coords}")
+            continue
+        line = LineString(coords)
+        xs, ys = line.xy
+        ax.plot(xs, ys, color=colors[j], lw=5, alpha=0.5)
     ax.set_xlim(xmin, xmax)
     ax.set_ylim(ymin, ymax)
+    ax.set_aspect("equal", adjustable="box")
     ax.legend()
-    ax.set_title("Evaluate network performance")
+    ax.set_title(f"Network, demand coverage: {demand_coverage:.2f} %")
+    ax.set_axis_off()
     plt.tight_layout()
-    plt.show()
+
     if save:
         plt.savefig(
+            f"{output_path}{filename}_{current_time()}.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+    plt.show()
+
+
+def scatter(gens, n_edges_dict, save=False, output_path="../results/plots/"):
+    cmap = mplcm["viridis"]
+    pop_ids = sorted(gens)
+    norm = Normalize(vmin=min(pop_ids), vmax=max(pop_ids))
+
+    fig, ax = plt.subplots(figsize=(9, 7))
+
+    for pop_id, pop in gens.items():
+        x = np.array([n_edges_dict[nw_id] for nw_id in pop])
+        y = np.array([nw["demand_covered"] for nw in pop.values()])
+        ax.scatter(
+            x,
+            y,
+            color=cmap(norm(pop_id)),
+            # s=26,
+            alpha=0.6,
+            edgecolor="white",
+            linewidth=0.5,
+            zorder=2,
+        )
+
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, pad=0.02)
+    cbar.set_label("Generation")
+
+    xmin = 125
+    xmax = 140
+    ymin = 10
+    ymax = 30
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    ax.set_xlabel("Number of edges")
+    ax.set_ylabel("Demand coverage (%)")
+    ax.set_title("Network performance by generation")
+    ax.grid(True, alpha=0.2)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.legend(frameon=False, loc="best")
+    fig.tight_layout()
+
+    if save:
+        fig.savefig(
             f"{output_path}scatter_{current_time()}.png",
             dpi=300,
             bbox_inches="tight",
         )
+    plt.show()

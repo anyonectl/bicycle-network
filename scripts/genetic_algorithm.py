@@ -25,6 +25,7 @@ import json
 import numpy as np
 import geopandas as gpd
 import bicycle_network.genetic_algorithm as ga
+from bicycle_network import irsg
 import bicycle_network.plot as bcnwplt
 
 # import networkx as nx
@@ -59,16 +60,17 @@ seed_points = gpd.read_file(SEED_POINTS_FILE)
 # %%
 with open(INITIAL_POP_FILE, "r") as fp:
     data = json.load(fp)
-start_pop = ga.json_to_pop(data)
+start_pop_old = irsg.json_to_pop(data)
+start_pop_new = ga.json_to_pop(data)
 
 # %%
-print(type(start_pop))
-print((start_pop))
-print(start_pop[0])
+print(type(start_pop_old))
+print((start_pop_old))
+print(start_pop_old[0])
 
 # %%
 bcnwplt.plot_population_dict(
-    start_pop,
+    start_pop_old,
     seed_points,
     grid,
     demand_type="absolute",
@@ -79,35 +81,41 @@ bcnwplt.plot_population_dict(
     gen=0,
 )
 
+
 # %% [markdown]
 # ## Run GA
 
 # %%
-generations = ga.run(start_pop, 10, demand_matrix, seed_points, grid)
+N_ITE = 20  # iterations
+MUTATE_PROB = 1.0
+M = 50
+generations = ga.run(
+    start_pop_new, N_ITE, MUTATE_PROB, M, demand_matrix, seed_points, grid
+)
 
 # %% [markdown]
 # ### Check last generation
-
-# %%
-n_gens = len(generations)
-final_pop = generations[n_gens - 1]
-
-# %%
-bcnwplt.plot_population_dict(
-    final_pop,
-    seed_points,
-    grid,
-    demand_type="absolute",
-    save=False,
-    output_path=PLOT_PATH,
-    filename="finalpop",
-    gen=n_gens,
-)
-
-# %%
-print(type(final_pop))
-print(final_pop)
-print(final_pop[0])
+#
+# # %%
+# n_gens = len(generations)
+# final_pop = generations[n_gens - 1]
+#
+# # %%
+# bcnwplt.plot_population_dict(
+#     final_pop,
+#     seed_points,
+#     grid,
+#     demand_type="absolute",
+#     save=True,
+#     output_path=PLOT_PATH,
+#     filename="finalpop_allmutated",
+#     gen=n_gens,
+# )
+#
+# # %%
+# print(type(final_pop))
+# print(final_pop)
+# print(final_pop[0])
 
 # %% [markdown]
 # ## Evaluate generations
@@ -129,6 +137,6 @@ print(final_pop[0])
 # ## Save generations as JSON
 
 # %%
-# filename = "generations_261113"
-# with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
-#     json.dump(generations, json_file, indent=4)
+filename = "generations_allmutated_261123"
+with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
+    json.dump(ga.generations_to_jsonable(generations), json_file, indent=4)

@@ -1,10 +1,15 @@
-from bicycle_network.genetic_algorithm import Network
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple, TypedDict
 import networkx as nx
 
 
+# TODO Put in own module/class file with methods, i.e. get path, get nodes, get geoms etc
+class Network(TypedDict):
+    demand_covered: float
+    paths: Dict[int, List[str]]  # irs/ips
+
+
 def is_connected(nw: Network) -> bool:
-    return nx.is_connected(_get_graph(nw))
+    return nx.is_connected(get_graph(nw))
 
 
 def network_len(nw: Network) -> int:
@@ -12,15 +17,24 @@ def network_len(nw: Network) -> int:
     # regular hexagons means all edges will have same length
     # parallel edges are not allowed in networkx undirected graphs,
     # so overlapping edges won't be counted more than once, which is what we want
-    return nx.number_of_edges(_get_graph(nw))
+    return nx.number_of_edges(get_graph(nw))
 
 
-def _get_graph(nw: Network) -> nx.Graph:
-    graph = nx.Graph(_get_edge_list(nw["paths"]))
+def get_bridges(nw: Network) -> Set[Tuple[str, str]]:
+    graph = get_graph(nw)
+    return set(nx.bridges(graph))
+
+
+def get_graph(nw: Network) -> nx.Graph:
+    graph = nx.Graph(get_edge_list(nw["paths"]))
     return graph
 
 
-def _get_edge_list(paths: Dict[int, List[str]]) -> List[Tuple[str, str]]:
+def get_edge_set(nw: Network) -> Set[Tuple[str, str]]:
+    return set(get_edge_list(nw["paths"]))
+
+
+def get_edge_list(paths: Dict[int, List[str]]) -> List[Tuple[str, str]]:
     path_list = []
     for path in paths.values():
         edge_list = _get_edges_in_path(path)

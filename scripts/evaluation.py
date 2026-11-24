@@ -20,23 +20,30 @@
 
 # %%
 import json
-import bicycle_network.genetic_algorithm as ga
 import bicycle_network.graph
 import bicycle_network.plot
+import bicycle_network.genetic_algorithm as ga
+import geopandas as gpd
 
 # %%
 ROOT = "../results/"
 PLOT_PATH = ROOT + "plots/"
 DATA_PATH = ROOT + "network-data/"
-GEN_FILE = f"{DATA_PATH}generations_261113.json"
+GEN_FILE = f"{DATA_PATH}generations_allmutated_261123.json"
+GRID_FILE = f"{DATA_PATH}grid.geojson"
+SEED_POINTS_FILE = f"{DATA_PATH}seed_points.geojson"
 
 # %% [markdown]
 # ### Load data
 
 # %%
+grid = gpd.read_file(GRID_FILE)
+seed_points = gpd.read_file(SEED_POINTS_FILE)
+
+# %%
 with open(GEN_FILE, "r") as fp:
     data = json.load(fp)
-gens = ga.json_to_gens(data)
+gens = ga.jsonable_to_gens(data)
 
 # %%
 print(type(gens))
@@ -70,12 +77,33 @@ print(gens[0])
 n_edges_dict = {}
 for pop in gens.values():
     for nw_id, nw in pop.items():
-        n_edges_dict[nw_id] = bicycle_network.graph.network_len(nw)
+        n_edges_dict[nw_id] = nw["graph"].number_of_edges()
 
 # %% [markdown]
 # ## Plot
+
+# %% [markdown]
+# ### Scatter plot
 # Scatter plot with x-axis the total length of a network,
 # y-axis the percentage of demand met
 
 # %%
 bicycle_network.plot.scatter(gens, n_edges_dict, output_path=PLOT_PATH)
+
+# %%
+# for pop_id in [0, 10, 19]:
+#     bicycle_network.plot.plot_population_nx(
+#         gens[pop_id],
+#         seed_points,
+#         grid,
+#         demand_type="absolute",
+#         save=False,
+#         output_path=PLOT_PATH,
+#         filename="mutation",
+#         gen=pop_id,
+#     )
+
+# %% [markdown]
+# ### Violin plot
+# One violin per generation to show demand coverage distribution for all networks in the generation.
+# Should include at least 5 gens, maybe all if there aren't that many

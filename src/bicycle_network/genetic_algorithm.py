@@ -1,7 +1,13 @@
 from math import fsum
 from typing import Dict, List, Set, Tuple, TypedDict
 import numpy as np
+from geopandas import GeoDataFrame as gdf
 import bicycle_network.demand as dmnd
+import bicycle_network.plot as bcnwplt
+import bicycle_network.graph
+import networkx as nx
+from networkx.classes.graph import Graph
+import copy
 
 # Gene: a path consisting of several edges
 # Chromosome: a candidate solution (i.e. a network) consisting of genes
@@ -15,36 +21,85 @@ RNG: np.random.Generator = np.random.default_rng(seed=SEED)
 type Population = Dict[int, Network]
 
 
-# TODO Put in own module/class file with methods, i.e. get path, get nodes, get geoms etc
 class Network(TypedDict):
     demand_covered: float
-    paths: Dict[int, List[str]]  # irs/ips
+    graph: Graph  # irs/ips
 
 
 def copy_network(original: Network) -> Network:
-    copy: Network = {
-        "demand_covered": original["demand_covered"],
-        "paths": dict(original["paths"]),
+    new = copy.deepcopy(original)
+    assert id(new) != id(original)
+    assert id(new["graph"]) != id(original["graph"])
+    return new
+
+
+def copy_pop(original: Population) -> Population:
+    new = copy.deepcopy(original)
+    assert id(new) != id(original)
+    return new
+
+
+def network_to_jsonable(nw: Network) -> dict:
+    return {
+        "demand_covered": float(nw["demand_covered"]),
+        "graph": nx.node_link_data(nw["graph"], edges="edges"),
     }
-    assert id(copy) != id(original)
-    assert id(copy["paths"]) != id(original["paths"])
-    return copy
+
+
+def generations_to_jsonable(gens: Dict[int, Population]) -> dict:
+    return {
+        str(gen): {str(nw_id): network_to_jsonable(nw) for nw_id, nw in pop.items()}
+        for gen, pop in gens.items()
+    }
+
+
+def jsonable_to_network(data: dict) -> Network:
+    nw: Network = {
+        "demand_covered": float(data["demand_covered"]),
+        "graph": nx.node_link_graph(data["graph"]),
+    }
+    return nw
+
+
+def jsonable_to_pop(data: dict) -> Population:
+    pop: Population = {
+        int(nw_id): jsonable_to_network(nw) for nw_id, nw in data.items()
+    }
+    return pop
+
+
+def jsonable_to_gens(data: dict) -> Dict[int, Population]:
+    return {int(pop_id): jsonable_to_pop(pop) for pop_id, pop in data.items()}
 
 
 # MAIN
 
 
 def run(
-    start_pop: Population, iterations: int, demand_matrix, seed_points, grid
+    start_pop: Population,
+    iterations: int,
+    mutation_probability: float,
+    m: int,
+    demand_matrix: gdf,
+    seed_points: gdf,
+    grid: gdf,
 ) -> Dict[int, Population]:
-    return _genetic_algorithm(start_pop, iterations, demand_matrix, seed_points, grid)
+    return _genetic_algorithm(
+        start_pop, iterations, mutation_probability, m, demand_matrix, seed_points, grid
+    )
 
 
 # ORCHESTRATOR
 
 
 def _genetic_algorithm(
-    start_pop: Population, iterations: int, demand_matrix, seed_points, grid
+    start_pop: Population,
+    iterations: int,
+    mutation_probability: float,
+    m: int,
+    demand_matrix: gdf,
+    seed_points: gdf,
+    grid: gdf,
 ) -> Dict[int, Population]:
     pop = start_pop
     n = len(pop)
@@ -52,26 +107,19 @@ def _genetic_algorithm(
     gens = {}
     assert id(pop) == id(start_pop)
     while i < iterations:  # or until some other convergence criteria
-        parents = _selection(n, pop)
+        parents = _reproduction(n, m, pop)
         assert id(parents) != id(pop)
-        children = _crossover(n, parents)
-        assert id(children) != id(parents)
+        # children = _crossover(n, parents)
+        # assert id(children) != id(parents)
         # mutated = _mutation(children)
-        evaluated = _evaluation(children, demand_matrix)
+        # evaluated = _evaluation(children, demand_matrix)
         # assert id(evaluated) != id(children) # this fails, why? demand should be updated
-        pop = evaluated
+        mutated = _mutation(parents, seed_points, grid, mutation_probability)
+        evaluated = _evaluation(mutated, demand_matrix)
+        selected = _selection(evaluated, n)
+        gens[i] = selected
+        pop = selected
         assert id(pop) != id(start_pop)
-        # TODO Move plotting out of this module
-        # bcnwplt.plot_population_dict(
-        #     pop,
-        #     seed_points,
-        #     grid,
-        #     demand_type="absolute",
-        #     save=False,
-        #     filename="pop",
-        #     gen=i,
-        # )
-        gens[i] = pop
         i = i + 1
     return gens
 
@@ -87,7 +135,7 @@ def _genetic_algorithm(
 # KEY FUNCTIONS
 
 
-def _selection(n: int, pop: Population) -> Population:
+def _reproduction(n: int, m: int, pop: Population) -> Population:
     """
     Selects the fittest networks from a population to breed the next generation.
     Networks with higher demand have a higher probability of being chosen.
@@ -95,14 +143,15 @@ def _selection(n: int, pop: Population) -> Population:
 
     Parameters:
     n (int): The number of networks to choose for the mating pool.
+    m (int): Scalar to multiply number of chosen networks.
     pop (Population): The population of networks to choose parent networks from.
 
     Returns:
-    A 'mating pool' population of {n} networks.
+    A 'mating pool' population of {n * m} networks.
     """
-    selected_ids = _select_ids(n, pop)
+    selected_ids = _select_ids(n, m, pop)
     mating_pool: Population = {
-        new_id: pop[old_id] for new_id, old_id in enumerate(selected_ids)
+        new_id: copy_network(pop[old_id]) for new_id, old_id in enumerate(selected_ids)
     }
     assert id(mating_pool) != id(pop)
     return mating_pool
@@ -149,16 +198,54 @@ def _crossover(n: int, mating_pool: Population) -> Population:
     return child_pop
 
 
-def _mutation(pop: Population) -> Population:
+def _mutation(
+    pop: Population, seed_points: gdf, grid: gdf, mutation_probability=0.3
+) -> Population:
     """
-    Randomly add, remove or replace an edge
+    Randomly mutates a random selection of networks in the population
+    by adding, removing or replacing edges.
 
-    For each ??? (inspired by Mesbah 2012):
-    1. Determine the possible edge additions and removals that ensure connectedness
-    2. Randomly choose 1 action from [add|remove|replace]
-    3. Randomly choose 1 edge (from possible choices in step 1) to [add|remove|replace]
+    Parameters:
+    pop (Population): The population of networks to randomly choose networks from
+
+    Returns:
+    A new population containing original and mutated networks.
     """
-    return pop
+    mutate = np.random.choice(
+        a=[True, False],
+        size=len(pop),
+        replace=True,
+        p=[mutation_probability, 1.0 - mutation_probability],
+    ).tolist()
+    mutated: Population = {}
+    for nw_id, nw in pop.items():
+        mutated[nw_id] = _mutate(nw, seed_points, grid) if mutate[nw_id] else nw
+        if not nx.is_connected(mutated[nw_id]["graph"]):
+            print(f"see network id: {nw_id}")
+            print("first plot: pop before mutation")
+            bcnwplt.plot_population_dict(
+                pop,
+                seed_points,
+                grid,
+                demand_type="absolute",
+                save=True,
+                output_path="../results/plots/",
+                filename=f"connectivity_BEFORE_mutation_nw{nw_id}",
+                gen=-99,
+            )
+            print(f"see network id: {nw_id}")
+            print("second plot: pop after mutation")
+            bcnwplt.plot_population_dict(
+                mutated,
+                seed_points,
+                grid,
+                demand_type="absolute",
+                save=True,
+                output_path="../results/plots/",
+                filename=f"connectivity_AFTER_mutation_nw{nw_id}",
+                gen=-100,
+            )
+    return mutated
 
 
 def _evaluation(pop: Population, demand_matrix) -> Population:
@@ -169,7 +256,29 @@ def _evaluation(pop: Population, demand_matrix) -> Population:
     return _recalculcate_fitness(pop, demand_matrix)
 
 
-# SELECTION HELPERS
+def _selection(pop: Population, n: int) -> Population:
+    """
+    Selects n networks for the next generation.
+    Either this or _reproduction should choose completely randomly
+    (not favour the best ones). But maybe we should keep the very
+    best one?
+
+    Parameters:
+    pop (Population): The population to choose n networks from
+    n (int): The number of networks to choose
+
+    Returns:
+    Population of n networks
+    """
+    nw_ids = [id for id in pop]
+    selected_ids = RNG.choice(nw_ids, size=n, replace=False).tolist()
+    selected: Population = {
+        new_id: pop[old_id] for new_id, old_id in enumerate(selected_ids)
+    }
+    return selected
+
+
+# REPRODUCTION HELPERS
 
 
 def _sum_demand_coverage(pop: Population) -> float:
@@ -182,10 +291,10 @@ def _get_probabilities(pop: Population) -> np.ndarray:
     return _normalise(demand_shares)
 
 
-def _select_ids(n: int, pop: Population) -> List[int]:
+def _select_ids(n: int, m: int, pop: Population) -> List[int]:
     demand_shares = _get_probabilities(pop)
     nw_ids = [id for id in pop]
-    selected_ids = RNG.choice(nw_ids, size=n, replace=True, p=demand_shares)
+    selected_ids = RNG.choice(nw_ids, size=n * m, replace=True, p=demand_shares)
     return selected_ids.tolist()
 
 
@@ -359,6 +468,28 @@ def _find_node(node: str, nw: Network) -> Tuple[int, int, List[str]]:
     return (node_index, path_id, path_list)
 
 
+def _find_edge(edge: Tuple[str, str], nw: Network) -> Tuple[int, int]:
+    """
+    Finds {edge} and its path in {nw}. Naive method.
+
+    Parameters:
+    node (str): The node to search for.
+    nw (Network): The network to search in.
+
+    Returns:
+    A tuple containing 1) the node's index in its path, 1) the path id, 2) the path itself.
+    """
+    u, v = edge
+    for path_id, path in nw["paths"].items():
+        if u in path and v in path:
+            u_idx = path.index(u)
+            v_idx = path.index(v)
+            diff = v_idx - u_idx
+            if diff == 1:
+                return (path_id, u_idx)
+    raise KeyError
+
+
 def _exchange_path_sections(
     index_A: int, index_B: int, path_A: List[str], path_B: List[str]
 ) -> Tuple[List[str], List[str]]:
@@ -382,22 +513,153 @@ def _exchange_path_sections(
 # MUTATION HELPERS
 
 
-def _mutate():
+def _mutate(nw: Network, seed_points: gdf, grid: gdf) -> Network:
     """
-    Randomly add, remove or replace an edge
+    Mutate the given network either by adding, removing or
+    replacing an edge. Whether to add, remove or replace is
+    determined randomly.
+
+    The original input network is not altered.
+
+    Parameters:
+    nw (Network): The network to mutate.
+
+    Returns:
+    A mutated version of the input network.
     """
-    return
+    assert nx.is_connected(nw["graph"])
+    action = str(RNG.choice(["add", "remove", "replace"], size=1)[0])
+    match action:
+        case "add":
+            new_nw = _add_edge(nw, seed_points)
+            assert id(nw) != id(new_nw)
+        case "remove":
+            new_nw = _remove_edge(nw, seed_points, grid)
+            assert id(nw) != id(new_nw)
+        case "replace":
+            new_nw = _replace_edge(nw, seed_points, grid)
+            assert id(nw) != id(new_nw)
+        case _:
+            raise NotImplementedError
+    assert nx.is_connected(new_nw["graph"])
+    return new_nw
+
+
+def _add_edge(nw: Network, seed_points: gdf) -> Network:
+    """
+    Adds an edge to the network that connects an existing node
+    in the network with a neighbouring node not already in the network.
+    The added edge is added as a new path, which may not be what we want.
+    This method keeps connectivity in the graph and mutates a copy of
+    the input network to avoid altering the original network.
+
+    Parameters:
+    nw (Network): The network to mutate.
+    seed_points (geopandas.GeoDataFrame): Matrix containing all seed points and their neighbours
+
+    Returns:
+    A mutated version of the input network with one edge added.
+
+    Idea, eager version:
+    1. Get all nodes of network
+    2. Get their neighbours
+    3. Only keep neighbours that are not already in the network
+    4. This will be the set of possible edge additions
+
+    Alternatively, lazy version:
+    1. Get all nodes of network (set)
+    2. Randomly choose one node
+    3. Get the neighbours of this node (either pass seed_points as param to this function,
+        or create nw as a networkx graph)
+    4. Check if any neighbours are not already in the network.
+    5. If all neighbours are already in the network, go back to step 2.
+    6. Randomly choose a node from the set of neighbours not already in the network.
+    7. Add edge from chosen node in step 2 to chosen node in step 6.
+    8. Should this be its own path, or should it be a part of the path with the
+        original chosen node? I guess it shouldn't matter?
+    """
+    nodes = nw["graph"].nodes
+    chosen_node = ""
+    node_pool = {}
+    while len(node_pool) == 0:
+        chosen_node = str(RNG.choice(nodes))  # type: ignore
+        neighbours = set(
+            seed_points.loc[seed_points["id"] == chosen_node, "neighbours"]
+            .values[0]
+            .values()  # type: ignore
+        )
+        node_pool = neighbours - nodes  # set difference
+    new_node = str(RNG.choice(list(node_pool)))
+    assert new_node not in nw["graph"]
+    mutated_nw = copy_network(nw)
+    assert id(nw) != id(mutated_nw)
+    mutated_nw["graph"].add_edge(chosen_node, new_node)
+    assert id(nw) != id(mutated_nw)
+    return mutated_nw
+
+
+def _remove_edge(nw: Network, seed_points, grid) -> Network:
+    """
+    Removes an edge from one of the paths of the input network.
+    The edge is only removed if it is not a bridge, i.e. removing
+    the edge does not disconnect the network. If no edge exists
+    that isn't a bridge in the network, the original network is
+    returned. Nothing is done to the path that contained the
+    removed edge, so the path itself will be disconnected.
+    This method keeps connectivity in the graph and mutates a copy of
+    the input network to avoid altering the original network.
+    ISSUE: If there are parallel edges from different paths in the
+    network dict structure, this method only removes one of them.
+    May be fixed in the _find_edge function if we find all occurrences.
+
+    Eager method:
+    1. Gets all edges in network
+    2. Finds the set of edges that aren't bridges
+    3. Randomly chooses an edge from the non-bridge set
+    4. Finds this edge in the network structure and removes it
+    5. Returns the newly mutated network
+
+    Parameters:
+    nw (Network): The network to mutate.
+
+    Returns:
+    A mutated version of the input network with one edge removed.
+    """
+    edges = nw["graph"].edges
+    bridges = set(nx.bridges(nw["graph"]))
+    edge_pool = edges - bridges  # set difference
+    mutated_nw = copy_network(nw)
+    if len(edge_pool) == 0:
+        return mutated_nw
+    fst, snd = tuple(RNG.choice(list(edge_pool)))  # type: ignore
+    u, v = str(fst), str(snd)
+    assert id(nw) != id(mutated_nw)
+    mutated_nw["graph"].remove_edge(u, v)
+    assert nx.is_connected(mutated_nw["graph"])
+    if not nx.is_connected(mutated_nw["graph"]):
+        print(f"nw: {nw}")
+        print(f"mutated_nw: {mutated_nw}")
+        bcnwplt.plot_network(nw, seed_points, grid)
+        bcnwplt.plot_network(mutated_nw, seed_points, grid)
+    return mutated_nw
+
+
+def _replace_edge(nw: Network, seed_points: gdf, grid) -> Network:
+    """ """
+    new_nw = _remove_edge(nw, seed_points, grid)
+    return _add_edge(new_nw, seed_points)
 
 
 # EVALUATION HELPERS
 
 
 def _recalculcate_fitness(pop: Population, demand_matrix) -> Population:
-    for nw in pop.values():
+    new_pop = copy_pop(pop)
+    for nw_id, nw in new_pop.items():
         nw["demand_covered"] = dmnd.network_demand_coverage(
-            _get_node_set(nw), demand_matrix
+            nw["graph"].nodes, demand_matrix
         )
-    return pop
+    return new_pop
 
 
 # OTHER HELPERS
@@ -407,32 +669,11 @@ def json_to_pop(data) -> Population:
     pop: Population = {
         int(nw_id): {
             "demand_covered": nw["demand_covered"],
-            "paths": {int(path_id): path for path_id, path in nw["paths"].items()},
+            "graph": nx.Graph(bicycle_network.graph.get_edge_list(nw["paths"])),
         }
         for nw_id, nw in data.items()
     }
     return pop
-
-
-def json_to_gens(data) -> Dict[int, Population]:
-    gens: Dict[int, Population] = {
-        int(pop_id): json_to_pop(pop) for pop_id, pop in data.items()
-    }
-    return gens
-
-
-# def json_to_gens(data) -> Dict[int, Population]:
-#     gens: Dict[int, Population] = {
-#         int(pop_id): {
-#             int(nw_id): {
-#                 "demand_covered": nw["demand_covered"],
-#                 "paths": {int(path_id): path for path_id, path in nw["paths"].items()},
-#             }
-#             for nw_id, nw in pop.items()
-#         }
-#         for pop_id, pop in data.items()
-#     }
-#     return gens
 
 
 # VISUALISATION
