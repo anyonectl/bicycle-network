@@ -381,20 +381,33 @@ def _inter_crossover(
     Returns:
     A pair of child networks.
     """
-    cut_node = str(RNG.choice(list(cut_nodes)))
+    cut_node = str(RNG.choice(sorted(cut_nodes)))
     components_A = _decompose_at(cut_node, graph_A)
     components_B = _decompose_at(cut_node, graph_B)
-    i = RNG.integers(0, len(components_A))
-    j = RNG.integers(0, len(components_B))
-    stripped_A = nx.compose_all(
-        components_A[:i] + components_A[i + 1 :]
-    )  # remove ith comp
-    stripped_B = nx.compose_all(
-        components_B[:j] + components_B[j + 1 :]
-    )  # remove jth comp
-    childg_A = nx.compose(stripped_A, components_B[j])  # graph_A - ith comp + jth comp
-    childg_B = nx.compose(stripped_B, components_A[i])  # graph_B - jth comp + ith comp
+    comp_a, comp_b = _choose_similar_components(components_A, components_B)
+    stripped_A = nx.compose_all([c for c in components_A if c is not comp_a])
+    stripped_B = nx.compose_all([c for c in components_B if c is not comp_b])
+    childg_A = nx.compose(stripped_A, comp_b)
+    childg_B = nx.compose(stripped_B, comp_a)
     return (childg_A, childg_B)
+
+
+def _choose_similar_components(A: List[Graph], B: List[Graph]) -> Tuple[Graph, Graph]:
+    """
+    Uses Jaccard similarity to choose a graph from each input list.
+    Most similar graph pair is returned.
+    """
+    chosen_pair = max(
+        ((a, b) for a in A for b in B),
+        key=_similarity_score,
+    )
+    return chosen_pair
+
+
+def _similarity_score(pair: Tuple[Graph, Graph]) -> float:
+    a = pair[0]
+    b = pair[1]
+    return len(set(a) & set(b)) / len(set(a) | set(b))
 
 
 def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
@@ -438,7 +451,7 @@ def _inter_intra_crossover(
     *if no shared vertex exists, this parent pair doesn't produce new child solutions
     """
     # Randomly choose 1 shared vertex
-    cut_node = str(RNG.choice(list(shared_nodes)))
+    cut_node = str(RNG.choice(sorted(shared_nodes)))
 
     # Find the paths that cut_node is in (naive method)
     cut_idx_A, path_id_A, path_A = _find_node(cut_node, parent_A)
@@ -632,7 +645,7 @@ def _add_edge(nw: Network, seed_points: gdf) -> Network:
             .values()  # type: ignore
         )
         node_pool = neighbours - nodes  # set difference
-    new_node = str(RNG.choice(list(node_pool)))
+    new_node = str(RNG.choice(sorted(node_pool)))
     assert new_node not in nw["graph"]
     mutated_nw = copy_network(nw)
     assert id(nw) != id(mutated_nw)
@@ -674,7 +687,7 @@ def _remove_edge(nw: Network, seed_points, grid) -> Network:
     mutated_nw = copy_network(nw)
     if len(edge_pool) == 0:
         return mutated_nw
-    fst, snd = tuple(RNG.choice(list(edge_pool)))  # type: ignore
+    fst, snd = tuple(RNG.choice(sorted(edge_pool)))  # type: ignore
     u, v = str(fst), str(snd)
     assert id(nw) != id(mutated_nw)
     mutated_nw["graph"].remove_edge(u, v)
