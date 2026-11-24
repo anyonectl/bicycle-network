@@ -401,6 +401,16 @@ def _inter_crossover(
     cut_node = str(RNG.choice(sorted(cut_nodes)))
     components_A = _decompose_at(cut_node, graph_A)
     components_B = _decompose_at(cut_node, graph_B)
+    # i = RNG.integers(0, len(components_A))
+    # j = RNG.integers(0, len(components_B))
+    # stripped_A = nx.compose_all(
+    #     components_A[:i] + components_A[i + 1 :]
+    # )  # remove ith comp
+    # stripped_B = nx.compose_all(
+    #     components_B[:j] + components_B[j + 1 :]
+    # )  # remove jth comp
+    # childg_A = nx.compose(stripped_A, components_B[j])  # graph_A - ith comp + jth comp
+    # childg_B = nx.compose(stripped_B, components_A[i])  # graph_B - jth comp + ith comp
     comp_a, comp_b = _choose_similar_components(components_A, components_B)
     stripped_A = nx.compose_all([c for c in components_A if c is not comp_a])
     stripped_B = nx.compose_all([c for c in components_B if c is not comp_b])
