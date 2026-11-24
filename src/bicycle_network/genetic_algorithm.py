@@ -184,14 +184,16 @@ def _crossover(n: int, mating_pool: Population) -> Population:
         id_A, id_B = _choose_parents(parent_ids)
         parent_A = mating_pool[id_A]
         parent_B = mating_pool[id_B]
-        shared_nodes = _get_shared_nodes(parent_A, parent_B)
-        if shared_nodes is None:
+        feasible_nodes = _get_shared_cut_nodes(parent_A["graph"], parent_B["graph"])
+        if not feasible_nodes:
             continue
         # remove_A, remove_B = mating_pool.pop(id_A), mating_pool.pop(id_B)
         # assert remove_A == parent_A, remove_B == parent_B
-        child_A, child_B = _inter_intra_crossover(parent_A, parent_B, shared_nodes)
-        assert id(child_A) != id(parent_A)
-        assert id(child_B) != id(parent_B)
+        childg_A, childg_B = _inter_crossover(
+            parent_A["graph"], parent_B["graph"], feasible_nodes
+        )
+        child_A: Network = {"demand_covered": 0.0, "graph": childg_A}
+        child_B: Network = {"demand_covered": 0.0, "graph": childg_B}
         child_pop[i] = child_A
         child_pop[i + 1] = child_B
         i = i + 2
@@ -339,23 +341,62 @@ def _choose_single_parent(pop: Population) -> Network | None:
     """
 
 
-def _inter_crossover(
-    parents: Tuple[Network, Network],
-) -> Tuple[Network, Network] | None:
+def _decompose_at(v: str, G: Graph) -> List[Graph]:
     """
-    Performs inter-string crossover by exchanging two complete paths
-    between two parent networks to create two child networks.
+    Decompose a connected Networkx graph into several connected
+    components by removing a cut vertex {v} and then
+    re-introducing {v} to all subgraphs.
+
+    Paramters:
+    v (str): Cut vertex/articulation point in G.
+    G (Graph): Connected Networkx graph.
+
+    Returns:
+    List of subgraphs that share node v.
+    """
+    disconnected = G.copy()
+    disconnected.remove_node(v)
+    connected_components = nx.connected_components(disconnected)
+    return [G.subgraph(comp | {v}).copy() for comp in connected_components]
+    # shouldn't use copy() for subgraph views - create them with a function instead...
+    # see networkx docs for subgraph
+
+
+def _inter_crossover(
+    graph_A: Graph, graph_B: Graph, cut_nodes: Set[str]
+) -> Tuple[Graph, Graph]:
+    """
+    Performs inter-string crossover by exchanging graph partitions
+    between two parent networks to create two child networks. The
+    partition node at which to cut is chosen randomly from a
+    feasible set of cut vertices shared between both parent
+    networks.
 
     Parameters:
-    parents (Tuple[Network, Network]): Pair of parents to exchange paths between.
+    parent A (Network): First parent network.
+    parent B (Network): Second parent network.
+    cut_nodes (set): Set of cut vertices shared between both parent networks.
 
     Returns:
     A pair of child networks.
     """
-    # CONNECTIVITY MUST BE ENFORCED
+    cut_node = str(RNG.choice(list(cut_nodes)))
+    components_A = _decompose_at(cut_node, graph_A)
+    components_B = _decompose_at(cut_node, graph_B)
+    i = RNG.integers(0, len(components_A))
+    j = RNG.integers(0, len(components_B))
+    stripped_A = nx.compose_all(
+        components_A[:i] + components_A[i + 1 :]
+    )  # remove ith comp
+    stripped_B = nx.compose_all(
+        components_B[:j] + components_B[j + 1 :]
+    )  # remove jth comp
+    childg_A = nx.compose(stripped_A, components_B[j])  # graph_A - ith comp + jth comp
+    childg_B = nx.compose(stripped_B, components_A[i])  # graph_B - jth comp + ith comp
+    return (childg_A, childg_B)
 
 
-def _intra_crossover(parent: Network) -> Tuple[Network, Network] | None:
+def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
     """
     Performs intra-string crossover by exchanging path sections
     between two paths in the same parent network to create two child
@@ -367,6 +408,7 @@ def _intra_crossover(parent: Network) -> Tuple[Network, Network] | None:
     Returns:
     A pair of child networks.
     """
+    raise NotImplementedError
 
 
 def _inter_intra_crossover(
@@ -421,26 +463,26 @@ def _inter_intra_crossover(
     return (child_A, child_B)
 
 
-def _get_node_set(nw: Network) -> Set[str]:
-    return set().union(*nw["paths"].values())
+def _get_shared_cut_nodes(graph_A: Graph, graph_B: Graph) -> Set[str]:
+    shared_nodes = _get_shared_nodes(graph_A, graph_B)
+    cut_nodes_A = set(nx.articulation_points(graph_A))
+    cut_nodes_B = set(nx.articulation_points(graph_B))
+    return shared_nodes & cut_nodes_A & cut_nodes_B  # set intersection
 
 
-def _get_shared_nodes(nw_A, nw_B) -> Set[str] | None:
+def _get_shared_nodes(graph_A: Graph, graph_B: Graph) -> Set[str]:
     """
     Finds and returns the shared nodes between two networks.
 
     Parameters:
-    nw_A (Network): First network.
-    nw_B (Network): Second network.
+    nw_A (Graph): First network's graph.
+    nw_B (Graph): Second network's graph.
 
     Returns:
     A set of shared nodes between the two networks if any exist, otherwise None.
     """
     # use set intersection
-    set_A = _get_node_set(nw_A)
-    set_B = _get_node_set(nw_B)
-    shared = set_A & set_B
-    return shared or None
+    return set(graph_A.nodes) & set(graph_B.nodes)
 
 
 def _find_node(node: str, nw: Network) -> Tuple[int, int, List[str]]:
