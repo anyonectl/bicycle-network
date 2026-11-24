@@ -95,6 +95,7 @@ generations = ga.run(
     demand_matrix,
     seed_points,
     grid,
+    RNG,
     PENALTY,
 )
 
