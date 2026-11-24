@@ -74,9 +74,9 @@ bcnwplt.plot_population_dict(
     seed_points,
     grid,
     demand_type="absolute",
-    save=False,
+    save=True,
     output_path=PLOT_PATH,
-    filename="start_pop",
+    filename="261124_start_pop",
     title="",
     gen=0,
 )
@@ -137,6 +137,6 @@ generations = ga.run(
 # ## Save generations as JSON
 
 # %%
-filename = "generations_allmutated_261123"
+filename = "generations_261124"
 with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
     json.dump(ga.generations_to_jsonable(generations), json_file, indent=4)
