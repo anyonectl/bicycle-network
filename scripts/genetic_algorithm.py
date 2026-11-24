@@ -69,28 +69,56 @@ print((start_pop_old))
 print(start_pop_old[0])
 
 # %%
-bcnwplt.plot_population_dict(
-    start_pop_old,
-    seed_points,
-    grid,
-    demand_type="absolute",
-    save=True,
-    output_path=PLOT_PATH,
-    filename="261124_start_pop",
-    title="",
-    gen=0,
-)
+# bcnwplt.plot_population_dict(
+#     start_pop_old,
+#     seed_points,
+#     grid,
+#     demand_type="absolute",
+#     save=True,
+#     output_path=PLOT_PATH,
+#     filename="261124_start_pop",
+#     title="",
+#     gen=0,
+# )
 
 
 # %% [markdown]
 # ## Run GA
 
 # %%
-N_ITE = 20  # iterations
+total_degree = seed_points["neighbours"].apply(len).sum()
+assert total_degree % 2 == 0
+
+# %%
+max_edges = int(seed_points["neighbours"].apply(len).sum() // 2)
+
+# %%
+N_ITE = 30  # iterations
 MUTATE_PROB = 1.0
-M = 50
+M = 15
+BUDGET = max_edges // 4
+PENALTY = 0.1
+
+print(f"Iterations: {N_ITE}")
+print(f"Population size: {len(start_pop_new)}")
+print(f"m: {M}")
+print(f"Max edges: {max_edges}")
+print(f"Budget: {BUDGET}")
+print(f"Penalty weight: {PENALTY}")
+print(f"Mutation probability: {MUTATE_PROB}")
+
+
 generations = ga.run(
-    start_pop_new, N_ITE, MUTATE_PROB, M, demand_matrix, seed_points, grid
+    start_pop_new,
+    N_ITE,
+    MUTATE_PROB,
+    M,
+    BUDGET,
+    max_edges,
+    demand_matrix,
+    seed_points,
+    grid,
+    PENALTY,
 )
 
 # %% [markdown]
@@ -140,3 +168,62 @@ generations = ga.run(
 filename = "generations_261124"
 with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
     json.dump(ga.generations_to_jsonable(generations), json_file, indent=4)
+
+# %% [markdown]
+# # Evaluation/plots
+# ## Get number of edges
+#
+# Can use the shapely objects to calc length - just need to map
+# the cell ids to their shapely points first
+#
+# Can maybe also save a metric demand per length
+#
+# When calculating length, we should not count the edges that are used by more than one path.
+
+# %% [markdown]
+# For a grid of 272 regular hexagons, we have:
+# - 210 interior cells with 6 neighbours
+# - 28 side cells with 4 neighbours
+# - 15 protruding top/bottom non-corner cells with 3 neighbours
+# - 15 non-protruding top/bottom non-corner cells with 5 neighbours
+# - 2 protruding corner cells (bottom) with 2 neighbours
+# - 2 non-protruding corner cells (top) with 3 neighbours
+#
+# Which gives a total cell count of 272, and a total number of edges
+# in the dual (?) graph of 751 edges.
+
+# %%
+# Calculate number of edges in each network
+n_edges_dict = {}
+for pop in generations.values():
+    for nw_id, nw in pop.items():
+        n_edges_dict[nw_id] = nw["graph"].number_of_edges()
+
+# %% [markdown]
+# ## Plot
+
+# %% [markdown]
+# ### Scatter plot
+# Scatter plot with x-axis the total length of a network,
+# y-axis the percentage of demand met
+
+# %%
+bcnwplt.scatter(generations, n_edges_dict, save=True, output_path=PLOT_PATH)
+
+# %%
+for pop_id in [0, N_ITE // 2, N_ITE - 1]:
+    bcnwplt.plot_population_nx(
+        generations[pop_id],
+        seed_points,
+        grid,
+        demand_type="absolute",
+        save=True,
+        output_path=PLOT_PATH,
+        filename="mutate_and_crossover",
+        gen=pop_id,
+    )
+
+# %% [markdown]
+# ### Violin plot
+# One violin per generation to show demand coverage distribution for all networks in the generation.
+# Should include at least 5 gens, maybe all if there aren't that many

@@ -80,12 +80,24 @@ def run(
     iterations: int,
     mutation_probability: float,
     m: int,
+    budget: int,
+    max_edges: int,
     demand_matrix: gdf,
     seed_points: gdf,
     grid: gdf,
+    penalty: float = 0.2,
 ) -> Dict[int, Population]:
     return _genetic_algorithm(
-        start_pop, iterations, mutation_probability, m, demand_matrix, seed_points, grid
+        start_pop,
+        iterations,
+        mutation_probability,
+        m,
+        demand_matrix,
+        budget,
+        max_edges,
+        penalty,
+        seed_points,
+        grid,
     )
 
 
@@ -98,6 +110,9 @@ def _genetic_algorithm(
     mutation_probability: float,
     m: int,
     demand_matrix: gdf,
+    budget: int,
+    max_edges: int,
+    penalty: float,
     seed_points: gdf,
     grid: gdf,
 ) -> Dict[int, Population]:
@@ -113,7 +128,7 @@ def _genetic_algorithm(
         assert id(children) != id(parents)
         mutated = _mutation(children, seed_points, grid, mutation_probability)
         assert id(mutated) != id(children)
-        evaluated = _evaluation(mutated, demand_matrix)
+        evaluated = _evaluation(mutated, demand_matrix, budget, max_edges, penalty)
         assert id(evaluated) != id(mutated)
         # selected = _selection(evaluated, n)
         # gens[i] = selected
@@ -251,12 +266,14 @@ def _mutation(
     return mutated
 
 
-def _evaluation(pop: Population, demand_matrix) -> Population:
+def _evaluation(
+    pop: Population, demand_matrix, budget, max_edges, penalty
+) -> Population:
     """
     1. Calculate the percentage of demand covered for each network in the population.
     2. Choose only the n fittest? (Not now - For now, let's just do the above)
     """
-    return _recalculcate_fitness(pop, demand_matrix)
+    return _recalculcate_fitness(pop, demand_matrix, budget, max_edges, penalty)
 
 
 def _selection(pop: Population, n: int) -> Population:
@@ -709,12 +726,32 @@ def _replace_edge(nw: Network, seed_points: gdf, grid) -> Network:
 # EVALUATION HELPERS
 
 
-def _recalculcate_fitness(pop: Population, demand_matrix) -> Population:
+# TODO "demand_covered" in the data structure should be called "fitness" instead
+def _recalculcate_fitness(
+    pop: Population,
+    demand_matrix: gdf,
+    budget: int,
+    max_edges: int,
+    penalty_weight: float,
+) -> Population:
+    """
+    Calculates the fitness function for every network in a population.
+    Fitness function is demand_coverage, but if a network is over the budget
+    of max number of edges, then the score is penalised. Solutions that cross
+    the budget more are also penalised harder.
+    """
+    max_overspend = max_edges - budget
     new_pop = copy_pop(pop)
-    for nw_id, nw in new_pop.items():
-        nw["demand_covered"] = dmnd.network_demand_coverage(
-            nw["graph"].nodes, demand_matrix
-        )
+    for nw in new_pop.values():
+        demand_covered = dmnd.network_demand_coverage(nw["graph"].nodes, demand_matrix)
+        cost = nw["graph"].number_of_edges()
+        if cost > budget:
+            overspend_pct = ((cost - budget) / max_overspend) * 100
+            nw["demand_covered"] = max(
+                0.0, demand_covered - (penalty_weight * overspend_pct)
+            )
+        else:
+            nw["demand_covered"] = demand_covered
     return new_pop
 
 
