@@ -509,6 +509,8 @@ def _add_edge(
 
 def _remove_edge(nw: Network, rng: np.random.Generator) -> Network:
     """
+    Removes an edge but no nodes.
+
     Removes an edge from one of the paths of the input network.
     The edge is only removed if it is not a bridge, i.e. removing
     the edge does not disconnect the network. If no edge exists
@@ -534,18 +536,19 @@ def _remove_edge(nw: Network, rng: np.random.Generator) -> Network:
     Returns:
     A mutated version of the input network with one edge removed.
     """
-    edges = nw["graph"].edges
-    bridges = set(nx.bridges(nw["graph"]))
-    edge_pool = edges - bridges  # set difference
-    mutated_nw = copy_network(nw)
-    if len(edge_pool) == 0:
-        return mutated_nw
-    fst, snd = tuple(rng.choice(sorted(edge_pool)))  # type: ignore
-    u, v = str(fst), str(snd)
-    assert id(nw) != id(mutated_nw)
-    mutated_nw["graph"].remove_edge(u, v)
-    assert nx.is_connected(mutated_nw["graph"])
-    return mutated_nw
+    graph = nw["graph"]
+    bridges = {frozenset(edge) for edge in nx.bridges(graph)}
+    feasible_edges = sorted(
+        tuple(sorted(edge) for edge in graph.edges if frozenset(edge) not in bridges)
+    )
+    if not feasible_edges:
+        return nw
+    u, v = _random_choice(feasible_edges, rng)
+    mutated_graph = graph.copy()
+    assert id(graph) != id(mutated_graph)
+    mutated_graph.remove_edge(u, v)
+    assert nx.is_connected(mutated_graph)
+    return _create_network(mutated_graph)
 
 
 def _replace_edge(
@@ -591,15 +594,8 @@ def _recalculcate_fitness(
 # OTHER HELPERS
 
 
-def json_to_pop(data) -> Population:
-    pop: Population = {
-        int(nw_id): {
-            "demand_covered": nw["demand_covered"],
-            "graph": nx.Graph(bicycle_network.graph.get_edge_list(nw["paths"])),
-        }
-        for nw_id, nw in data.items()
-    }
-    return pop
+def _create_network(graph: Graph) -> Network:
+    return {"demand_covered": 0.0, "graph": graph}
 
 
 def _random_choice[T](items: Sequence[T], rng: np.random.Generator) -> T:
@@ -664,3 +660,14 @@ def jsonable_to_pop(data: dict) -> Population:
 
 def jsonable_to_gens(data: dict) -> Dict[int, Population]:
     return {int(pop_id): jsonable_to_pop(pop) for pop_id, pop in data.items()}
+
+
+def json_to_pop(data) -> Population:
+    pop: Population = {
+        int(nw_id): {
+            "demand_covered": nw["demand_covered"],
+            "graph": nx.Graph(bicycle_network.graph.get_edge_list(nw["paths"])),
+        }
+        for nw_id, nw in data.items()
+    }
+    return pop
