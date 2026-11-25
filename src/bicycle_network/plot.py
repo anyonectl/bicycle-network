@@ -127,7 +127,60 @@ def plot_population_dict(
     plt.show()
 
 
-def plot_population_nx(
+def _draw_network(ax, graph, seed_points: gdf, grid: gdf) -> None:
+    """
+    Draws one network on the given axis, one colour per connected component.
+    """
+    xmin, ymin, xmax, ymax = grid.total_bounds
+    grid.boundary.plot(ax=ax, color="grey", lw=1)
+    seed_points["geometry"].plot(ax=ax, color="black", markersize=1)
+    id_to_centroid = seed_points.set_index("id")["geometry"].to_dict()
+    components = list(nx.connected_components(graph))
+    colors = mplcm["tab10"](np.linspace(0, 1, max(len(components), 1)))
+    for color, component in zip(colors, components):
+        segments = [
+            [
+                (id_to_centroid[u].x, id_to_centroid[u].y),
+                (id_to_centroid[v].x, id_to_centroid[v].y),
+            ]
+            for u, v in graph.subgraph(component).edges
+        ]
+        if segments:
+            ax.add_collection(
+                LineCollection(segments, colors=[color], linewidths=5, alpha=0.5)
+            )
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    ax.set_aspect("equal", adjustable="box")
+    ax.set_axis_off()
+
+
+def network(
+    nw,
+    seed_points: gdf,
+    grid: gdf,
+    save=False,
+    output_path="../results/plots/",
+    filename="network",
+):
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    _draw_network(ax, nw["graph"], seed_points, grid)
+    ax.set_title(
+        f"Network: {nw['demand_covered']:.1f} % demand, "
+        f"{nw['graph'].number_of_edges()} edges"
+    )
+    plt.tight_layout()
+    if save:
+        plt.savefig(
+            f"{output_path}{filename}_{current_time()}.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+    plt.show()
+    plt.close()
+
+
+def population(
     pop,
     seed_points: gdf,
     grid: gdf,
@@ -143,48 +196,16 @@ def plot_population_nx(
     n_rows = ceil(n_pop / n_cols)
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 5 * n_rows))
     axes = np.atleast_1d(axes).ravel()
-    cmap = mplcm["tab10"]
-    id_to_centroid = seed_points.set_index("id")["geometry"].to_dict()
-    xmin, ymin, xmax, ymax = grid.total_bounds
-
-    for i, (nw_id, nw) in enumerate(pop.items()):
-        ax = axes[i]
-        graph = nw["graph"]
-        demand_coverage = nw["demand_covered"]
-        grid.boundary.plot(ax=ax, color="grey", lw=1)
-        seed_points["geometry"].plot(ax=ax, color="black", markersize=1)
-        components = list(nx.connected_components(graph))
-        colors = cmap(np.linspace(0, 1, max(len(components), 1)))
-
-        for j, component in enumerate(components):
-            segments = []
-            for u, v in graph.subgraph(component).edges:
-                p = id_to_centroid[u]
-                q = id_to_centroid[v]
-                segments.append([(p.x, p.y), (q.x, q.y)])
-            if not segments:
-                continue
-            ax.add_collection(
-                LineCollection(
-                    segments,
-                    colors=[colors[j]],
-                    linewidths=5,
-                    alpha=0.5,
-                )
-            )
-
-        ax.set_xlim(xmin, xmax)
-        ax.set_ylim(ymin, ymax)
-        ax.set_aspect("equal", adjustable="box")
-        ax.set_title(f"Network {nw_id}, demand coverage: {demand_coverage:.2f} %")
-        ax.set_axis_off()
-
+    for ax, (nw_id, nw) in zip(axes, pop.items()):
+        _draw_network(ax, nw["graph"], seed_points, grid)
+        ax.set_title(
+            f"Network {nw_id}: {nw['demand_covered']:.1f} % demand, "
+            f"{nw['graph'].number_of_edges()} edges"
+        )
     for ax in axes[n_pop:]:
         ax.set_axis_off()
-
     fig.suptitle(f"Gen. {gen}", fontsize=16)
     plt.tight_layout()
-
     if save:
         gen_str = f"gen{gen}"
         plt.savefig(
@@ -193,50 +214,7 @@ def plot_population_nx(
             bbox_inches="tight",
         )
     plt.show()
-
-
-def plot_network(
-    nw,
-    seed_points: gdf,
-    grid: gdf,
-    save=False,
-    output_path="../results/plots/",
-    filename="network",
-):
-    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-    cmap = mplcm.get_cmap("tab10")
-    id_to_centroid = seed_points.set_index("id")["geometry"].to_dict()
-    xmin, ymin, xmax, ymax = grid.total_bounds
-
-    demand_coverage = nw["demand_covered"]
-    path_ids = list(nw["paths"].keys())
-    colors = cmap(np.linspace(0, 1, len(path_ids)))
-    grid.boundary.plot(ax=ax, color="grey", lw=1)
-    seed_points["geometry"].plot(ax=ax, color="black", markersize=1)
-
-    for j, (path_id, path) in enumerate(nw["paths"].items()):
-        coords = [id_to_centroid[point_id] for point_id in path]
-        if len(coords) < 2:  # TODO Need to fix this in the algorithm somehow...
-            print(f"Skipping path {path_id}: {coords}")
-            continue
-        line = LineString(coords)
-        xs, ys = line.xy
-        ax.plot(xs, ys, color=colors[j], lw=5, alpha=0.5)
-    ax.set_xlim(xmin, xmax)
-    ax.set_ylim(ymin, ymax)
-    ax.set_aspect("equal", adjustable="box")
-    ax.legend()
-    ax.set_title(f"Network, demand coverage: {demand_coverage:.2f} %")
-    ax.set_axis_off()
-    plt.tight_layout()
-
-    if save:
-        plt.savefig(
-            f"{output_path}{filename}_{current_time()}.png",
-            dpi=300,
-            bbox_inches="tight",
-        )
-    plt.show()
+    plt.close()
 
 
 def scatter(gens, budget=None, save=False, output_path="../results/plots/"):

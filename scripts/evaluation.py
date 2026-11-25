@@ -92,7 +92,7 @@ bicycle_network.plot.scatter(gens, n_edges_dict, save=True, output_path=PLOT_PAT
 
 # %%
 for pop_id in [0, 10, 19]:
-    bicycle_network.plot.plot_population_nx(
+    bicycle_network.plot.population(
         gens[pop_id],
         seed_points,
         grid,
