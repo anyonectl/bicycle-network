@@ -116,12 +116,13 @@ def _genetic_algorithm(
     grid: gdf,
     rng: np.random.Generator,
 ) -> Dict[int, Population]:
-    pop = start_pop
-    n = len(pop)
-    i = 0
+    n = len(start_pop)
     gens = {}
+    gens[0] = start_pop
+    pop = start_pop
+    i = 1
     assert id(pop) == id(start_pop)
-    while i < iterations:  # or until some other convergence criteria
+    while i <= iterations:  # or until some other convergence criteria
         parents = _reproduction(n, m, pop, rng)
         assert id(parents) != id(pop)
         children = _crossover(n, parents, rng)
