@@ -1,9 +1,8 @@
 from math import fsum
-from typing import Dict, List, Set, Tuple, TypedDict
+from typing import Dict, List, Sequence, Set, Tuple, TypedDict
 import numpy as np
 from geopandas import GeoDataFrame as gdf
 import bicycle_network.demand as dmnd
-import bicycle_network.plot as bcnwplt
 import bicycle_network.graph
 import networkx as nx
 from networkx.classes.graph import Graph
@@ -23,52 +22,6 @@ class Network(TypedDict):
     graph: Graph  # irs/ips
 
 
-def copy_network(original: Network) -> Network:
-    new = copy.deepcopy(original)
-    assert id(new) != id(original)
-    assert id(new["graph"]) != id(original["graph"])
-    return new
-
-
-def copy_pop(original: Population) -> Population:
-    new = copy.deepcopy(original)
-    assert id(new) != id(original)
-    return new
-
-
-def network_to_jsonable(nw: Network) -> dict:
-    return {
-        "demand_covered": float(nw["demand_covered"]),
-        "graph": nx.node_link_data(nw["graph"], edges="edges"),
-    }
-
-
-def generations_to_jsonable(gens: Dict[int, Population]) -> dict:
-    return {
-        str(gen): {str(nw_id): network_to_jsonable(nw) for nw_id, nw in pop.items()}
-        for gen, pop in gens.items()
-    }
-
-
-def jsonable_to_network(data: dict) -> Network:
-    nw: Network = {
-        "demand_covered": float(data["demand_covered"]),
-        "graph": nx.node_link_graph(data["graph"]),
-    }
-    return nw
-
-
-def jsonable_to_pop(data: dict) -> Population:
-    pop: Population = {
-        int(nw_id): jsonable_to_network(nw) for nw_id, nw in data.items()
-    }
-    return pop
-
-
-def jsonable_to_gens(data: dict) -> Dict[int, Population]:
-    return {int(pop_id): jsonable_to_pop(pop) for pop_id, pop in data.items()}
-
-
 # MAIN
 
 
@@ -82,9 +35,11 @@ def run(
     demand_matrix: gdf,
     seed_points: gdf,
     grid: gdf,
-    rng: np.random.Generator,
     penalty: float = 0.2,
+    seed: int = 3581054352,
 ) -> Dict[int, Population]:
+    rng = np.random.default_rng(seed=seed)
+    neighbours = _neighbour_lookup(seed_points)
     return _genetic_algorithm(
         start_pop,
         iterations,
@@ -94,7 +49,7 @@ def run(
         budget,
         max_edges,
         penalty,
-        seed_points,
+        neighbours,
         grid,
         rng,
     )
@@ -112,21 +67,22 @@ def _genetic_algorithm(
     budget: int,
     max_edges: int,
     penalty: float,
-    seed_points: gdf,
+    neighbours: dict[str, set[str]],
     grid: gdf,
     rng: np.random.Generator,
 ) -> Dict[int, Population]:
-    pop = start_pop
-    n = len(pop)
-    i = 0
+    n = len(start_pop)
     gens = {}
+    gens[0] = start_pop
+    pop = start_pop
+    i = 1
     assert id(pop) == id(start_pop)
-    while i < iterations:  # or until some other convergence criteria
+    while i <= iterations:  # or until some other convergence criteria
         parents = _reproduction(n, m, pop, rng)
         assert id(parents) != id(pop)
         children = _crossover(n, parents, rng)
         assert id(children) != id(parents)
-        mutated = _mutation(children, seed_points, grid, rng, mutation_probability)
+        mutated = _mutation(children, neighbours, grid, rng, mutation_probability)
         assert id(mutated) != id(children)
         evaluated = _evaluation(mutated, demand_matrix, budget, max_edges, penalty)
         assert id(evaluated) != id(mutated)
@@ -202,13 +158,14 @@ def _crossover(n: int, mating_pool: Population, rng: np.random.Generator) -> Pop
         id_A, id_B = _choose_parents(parent_ids, rng)
         parent_A = mating_pool[id_A]
         parent_B = mating_pool[id_B]
-        feasible_nodes = _get_shared_cut_nodes(parent_A["graph"], parent_B["graph"])
-        if not feasible_nodes:
+        feasible_cuts = _get_shared_cut_nodes(parent_A["graph"], parent_B["graph"])
+        if not feasible_cuts:
             continue
+            # return _create_network(graph_a), _create_network(graph_b)
         # remove_A, remove_B = mating_pool.pop(id_A), mating_pool.pop(id_B)
         # assert remove_A == parent_A, remove_B == parent_B
         childg_A, childg_B = _inter_crossover(
-            parent_A["graph"], parent_B["graph"], feasible_nodes, rng
+            parent_A["graph"], parent_B["graph"], feasible_cuts, rng
         )
         child_A: Network = {"demand_covered": 0.0, "graph": childg_A}
         child_B: Network = {"demand_covered": 0.0, "graph": childg_B}
@@ -220,7 +177,7 @@ def _crossover(n: int, mating_pool: Population, rng: np.random.Generator) -> Pop
 
 def _mutation(
     pop: Population,
-    seed_points: gdf,
+    neighbours: dict[str, set[str]],
     grid: gdf,
     rng: np.random.Generator,
     mutation_probability=0.3,
@@ -243,32 +200,7 @@ def _mutation(
     ).tolist()
     mutated: Population = {}
     for nw_id, nw in pop.items():
-        mutated[nw_id] = _mutate(nw, seed_points, grid, rng) if mutate[nw_id] else nw
-        if not nx.is_connected(mutated[nw_id]["graph"]):
-            print(f"see network id: {nw_id}")
-            print("first plot: pop before mutation")
-            bcnwplt.plot_population_dict(
-                pop,
-                seed_points,
-                grid,
-                demand_type="absolute",
-                save=True,
-                output_path="../results/plots/",
-                filename=f"connectivity_BEFORE_mutation_nw{nw_id}",
-                gen=-99,
-            )
-            print(f"see network id: {nw_id}")
-            print("second plot: pop after mutation")
-            bcnwplt.plot_population_dict(
-                mutated,
-                seed_points,
-                grid,
-                demand_type="absolute",
-                save=True,
-                output_path="../results/plots/",
-                filename=f"connectivity_AFTER_mutation_nw{nw_id}",
-                gen=-100,
-            )
+        mutated[nw_id] = _mutate(nw, neighbours, grid, rng) if mutate[nw_id] else nw
     return mutated
 
 
@@ -370,7 +302,7 @@ def _choose_single_parent(pop: Population) -> Network | None:
     """
 
 
-def _decompose_at(v: str, G: Graph) -> List[Graph]:
+def _decompose_at(cut_node: str, graph: Graph) -> List[Graph]:
     """
     Decompose a connected Networkx graph into several connected
     components by removing a cut vertex {v} and then
@@ -383,17 +315,15 @@ def _decompose_at(v: str, G: Graph) -> List[Graph]:
     Returns:
     List of subgraphs that share node v.
     """
-    disconnected = G.copy()
-    disconnected.remove_node(v)
-    connected_components = nx.connected_components(disconnected)
-    return [G.subgraph(comp | {v}).copy() for comp in connected_components]
-    # shouldn't use copy() for subgraph views - create them with a function instead...
-    # see networkx docs for subgraph
+    disconnected = graph.copy()
+    disconnected.remove_node(cut_node)
+    components = sorted(nx.connected_components(disconnected), key=min)
+    return [graph.subgraph(comp | {cut_node}).copy() for comp in components]
 
 
 def _inter_crossover(
-    graph_A: Graph,
-    graph_B: Graph,
+    graph_a: Graph,
+    graph_b: Graph,
     cut_nodes: Set[str],
     rng: np.random.Generator,
 ) -> Tuple[Graph, Graph]:
@@ -412,9 +342,9 @@ def _inter_crossover(
     Returns:
     A pair of child networks.
     """
-    cut_node = str(rng.choice(sorted(cut_nodes)))
-    components_A = _decompose_at(cut_node, graph_A)
-    components_B = _decompose_at(cut_node, graph_B)
+    cut_node = _random_choice(sorted(cut_nodes), rng)
+    components_a = _decompose_at(cut_node, graph_a)
+    components_b = _decompose_at(cut_node, graph_b)
     # i = rng.integers(0, len(components_A))
     # j = rng.integers(0, len(components_B))
     # stripped_A = nx.compose_all(
@@ -425,9 +355,9 @@ def _inter_crossover(
     # )  # remove jth comp
     # childg_A = nx.compose(stripped_A, components_B[j])  # graph_A - ith comp + jth comp
     # childg_B = nx.compose(stripped_B, components_A[i])  # graph_B - jth comp + ith comp
-    comp_a, comp_b = _choose_similar_components(components_A, components_B)
-    stripped_A = nx.compose_all([c for c in components_A if c is not comp_a])
-    stripped_B = nx.compose_all([c for c in components_B if c is not comp_b])
+    comp_a, comp_b = _choose_similar_components(components_a, components_b)
+    stripped_A = nx.compose_all([c for c in components_a if c is not comp_a])
+    stripped_B = nx.compose_all([c for c in components_b if c is not comp_b])
     childg_A = nx.compose(stripped_A, comp_b)
     childg_B = nx.compose(stripped_B, comp_a)
     return (childg_A, childg_B)
@@ -466,33 +396,31 @@ def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
     raise NotImplementedError
 
 
-def _get_shared_cut_nodes(graph_A: Graph, graph_B: Graph) -> Set[str]:
-    shared_nodes = _get_shared_nodes(graph_A, graph_B)
-    cut_nodes_A = set(nx.articulation_points(graph_A))
-    cut_nodes_B = set(nx.articulation_points(graph_B))
-    return shared_nodes & cut_nodes_A & cut_nodes_B  # set intersection
-
-
-def _get_shared_nodes(graph_A: Graph, graph_B: Graph) -> Set[str]:
+def _get_shared_cut_nodes(graph_a: Graph, graph_b: Graph) -> Set[str]:
     """
-    Finds and returns the shared nodes between two networks.
+    Finds and returns the shared nodes between two networks that are
+    also cut vertices in both networks.
 
     Parameters:
-    nw_A (Graph): First network's graph.
-    nw_B (Graph): Second network's graph.
+    graph_a (Graph): First network's graph.
+    graph_b (Graph): Second network's graph.
 
     Returns:
-    A set of shared nodes between the two networks if any exist, otherwise None.
+    A set of cut vertices shared between the two networks.
     """
-    # use set intersection
-    return set(graph_A.nodes) & set(graph_B.nodes)
+    shared = set(graph_a) & set(graph_b)
+    return (
+        shared
+        & set(nx.articulation_points(graph_a))
+        & set(nx.articulation_points(graph_b))
+    )
 
 
 # MUTATION HELPERS
 
 
 def _mutate(
-    nw: Network, seed_points: gdf, grid: gdf, rng: np.random.Generator
+    nw: Network, neighbours: dict[str, set[str]], grid: gdf, rng: np.random.Generator
 ) -> Network:
     """
     Mutate the given network either by adding, removing or
@@ -508,16 +436,16 @@ def _mutate(
     A mutated version of the input network.
     """
     assert nx.is_connected(nw["graph"])
-    action = str(rng.choice(["add", "remove", "replace"], size=1)[0])
+    action = _random_choice(["add", "remove", "replace"], rng)
     match action:
         case "add":
-            new_nw = _add_edge(nw, seed_points, rng)
+            new_nw = _add_edge(nw, neighbours, rng)
             assert id(nw) != id(new_nw)
         case "remove":
-            new_nw = _remove_edge(nw, seed_points, grid, rng)
+            new_nw = _remove_edge(nw, rng)
             assert id(nw) != id(new_nw)
         case "replace":
-            new_nw = _replace_edge(nw, seed_points, grid, rng)
+            new_nw = _replace_edge(nw, neighbours, rng)
             assert id(nw) != id(new_nw)
         case _:
             raise NotImplementedError
@@ -525,7 +453,9 @@ def _mutate(
     return new_nw
 
 
-def _add_edge(nw: Network, seed_points: gdf, rng: np.random.Generator) -> Network:
+def _add_edge(
+    nw: Network, neighbour_lookup: dict[str, set[str]], rng: np.random.Generator
+) -> Network:
     """
     Adds an edge to the network that connects an existing node
     in the network with a neighbouring node not already in the network.
@@ -563,11 +493,7 @@ def _add_edge(nw: Network, seed_points: gdf, rng: np.random.Generator) -> Networ
     node_pool = {}
     while len(node_pool) == 0:
         chosen_node = str(rng.choice(nodes))  # type: ignore
-        neighbours = set(
-            seed_points.loc[seed_points["id"] == chosen_node, "neighbours"]
-            .values[0]
-            .values()  # type: ignore
-        )
+        neighbours = neighbour_lookup[chosen_node]
         node_pool = neighbours - nodes  # set difference
     new_node = str(rng.choice(sorted(node_pool)))
     assert new_node not in nw["graph"]
@@ -578,8 +504,10 @@ def _add_edge(nw: Network, seed_points: gdf, rng: np.random.Generator) -> Networ
     return mutated_nw
 
 
-def _remove_edge(nw: Network, seed_points, grid, rng: np.random.Generator) -> Network:
+def _remove_edge(nw: Network, rng: np.random.Generator) -> Network:
     """
+    Removes an edge but no nodes.
+
     Removes an edge from one of the paths of the input network.
     The edge is only removed if it is not a bridge, i.e. removing
     the edge does not disconnect the network. If no edge exists
@@ -605,31 +533,27 @@ def _remove_edge(nw: Network, seed_points, grid, rng: np.random.Generator) -> Ne
     Returns:
     A mutated version of the input network with one edge removed.
     """
-    edges = nw["graph"].edges
-    bridges = set(nx.bridges(nw["graph"]))
-    edge_pool = edges - bridges  # set difference
-    mutated_nw = copy_network(nw)
-    if len(edge_pool) == 0:
-        return mutated_nw
-    fst, snd = tuple(rng.choice(sorted(edge_pool)))  # type: ignore
-    u, v = str(fst), str(snd)
-    assert id(nw) != id(mutated_nw)
-    mutated_nw["graph"].remove_edge(u, v)
-    assert nx.is_connected(mutated_nw["graph"])
-    if not nx.is_connected(mutated_nw["graph"]):
-        print(f"nw: {nw}")
-        print(f"mutated_nw: {mutated_nw}")
-        bcnwplt.plot_network(nw, seed_points, grid)
-        bcnwplt.plot_network(mutated_nw, seed_points, grid)
-    return mutated_nw
+    graph = nw["graph"]
+    bridges = {frozenset(edge) for edge in nx.bridges(graph)}
+    feasible_edges = sorted(
+        tuple(sorted(edge) for edge in graph.edges if frozenset(edge) not in bridges)
+    )
+    if not feasible_edges:
+        return nw
+    u, v = _random_choice(feasible_edges, rng)
+    mutated_graph = graph.copy()
+    assert id(graph) != id(mutated_graph)
+    mutated_graph.remove_edge(u, v)
+    assert nx.is_connected(mutated_graph)
+    return _create_network(mutated_graph)
 
 
 def _replace_edge(
-    nw: Network, seed_points: gdf, grid: gdf, rng: np.random.Generator
+    nw: Network, neighbours: dict[str, set[str]], rng: np.random.Generator
 ) -> Network:
     """ """
-    new_nw = _remove_edge(nw, seed_points, grid, rng)
-    return _add_edge(new_nw, seed_points, rng)
+    new_nw = _remove_edge(nw, rng)
+    return _add_edge(new_nw, neighbours, rng)
 
 
 # EVALUATION HELPERS
@@ -667,6 +591,74 @@ def _recalculcate_fitness(
 # OTHER HELPERS
 
 
+def _create_network(graph: Graph) -> Network:
+    return {"demand_covered": 0.0, "graph": graph}
+
+
+def _random_choice[T](items: Sequence[T], rng: np.random.Generator) -> T:
+    """
+    Returns a randomly chosen element from `items`.
+    """
+    i = int(rng.integers(len(items)))
+    return items[i]
+
+
+def _neighbour_lookup(seed_points: gdf) -> Dict[str, Set[str]]:
+    """
+    Returns a dict that maps every seed point ID to a set containing
+    their neighbour seed IDs.
+    """
+    return {
+        str(cell_id): {str(neighbour_id) for neighbour_id in neighbours.values()}
+        for cell_id, neighbours in zip(seed_points["id"], seed_points["neighbours"])
+    }
+
+
+def copy_network(original: Network) -> Network:
+    new = copy.deepcopy(original)
+    assert id(new) != id(original)
+    assert id(new["graph"]) != id(original["graph"])
+    return new
+
+
+def copy_pop(original: Population) -> Population:
+    new = copy.deepcopy(original)
+    assert id(new) != id(original)
+    return new
+
+
+def network_to_jsonable(nw: Network) -> dict:
+    return {
+        "demand_covered": float(nw["demand_covered"]),
+        "graph": nx.node_link_data(nw["graph"], edges="edges"),
+    }
+
+
+def generations_to_jsonable(gens: Dict[int, Population]) -> dict:
+    return {
+        str(gen): {str(nw_id): network_to_jsonable(nw) for nw_id, nw in pop.items()}
+        for gen, pop in gens.items()
+    }
+
+
+def jsonable_to_network(data: dict) -> Network:
+    return {
+        "demand_covered": float(data["demand_covered"]),
+        "graph": nx.node_link_graph(data["graph"], edges="edges"),
+    }
+
+
+def jsonable_to_pop(data: dict) -> Population:
+    pop: Population = {
+        int(nw_id): jsonable_to_network(nw) for nw_id, nw in data.items()
+    }
+    return pop
+
+
+def jsonable_to_gens(data: dict) -> Dict[int, Population]:
+    return {int(pop_id): jsonable_to_pop(pop) for pop_id, pop in data.items()}
+
+
 def json_to_pop(data) -> Population:
     pop: Population = {
         int(nw_id): {
@@ -676,20 +668,3 @@ def json_to_pop(data) -> Population:
         for nw_id, nw in data.items()
     }
     return pop
-
-
-# VISUALISATION
-
-
-def plot_network():
-    """
-    Visualises a chromosome as a network, including the percentage of demand covered.
-    """
-
-
-def plot_generation():
-    """
-    Creates a scatter plot of a generation, where each blob is a chromosome (network),
-    the x axis is the total length of the network, and the y axis is the percentage of
-    total demand covered.
-    """
