@@ -158,13 +158,14 @@ def _crossover(n: int, mating_pool: Population, rng: np.random.Generator) -> Pop
         id_A, id_B = _choose_parents(parent_ids, rng)
         parent_A = mating_pool[id_A]
         parent_B = mating_pool[id_B]
-        feasible_nodes = _get_shared_cut_nodes(parent_A["graph"], parent_B["graph"])
-        if not feasible_nodes:
+        feasible_cuts = _get_shared_cut_nodes(parent_A["graph"], parent_B["graph"])
+        if not feasible_cuts:
             continue
+            # return _create_network(graph_a), _create_network(graph_b)
         # remove_A, remove_B = mating_pool.pop(id_A), mating_pool.pop(id_B)
         # assert remove_A == parent_A, remove_B == parent_B
         childg_A, childg_B = _inter_crossover(
-            parent_A["graph"], parent_B["graph"], feasible_nodes, rng
+            parent_A["graph"], parent_B["graph"], feasible_cuts, rng
         )
         child_A: Network = {"demand_covered": 0.0, "graph": childg_A}
         child_B: Network = {"demand_covered": 0.0, "graph": childg_B}
@@ -301,7 +302,7 @@ def _choose_single_parent(pop: Population) -> Network | None:
     """
 
 
-def _decompose_at(v: str, G: Graph) -> List[Graph]:
+def _decompose_at(cut_node: str, graph: Graph) -> List[Graph]:
     """
     Decompose a connected Networkx graph into several connected
     components by removing a cut vertex {v} and then
@@ -314,17 +315,15 @@ def _decompose_at(v: str, G: Graph) -> List[Graph]:
     Returns:
     List of subgraphs that share node v.
     """
-    disconnected = G.copy()
-    disconnected.remove_node(v)
-    connected_components = nx.connected_components(disconnected)
-    return [G.subgraph(comp | {v}).copy() for comp in connected_components]
-    # shouldn't use copy() for subgraph views - create them with a function instead...
-    # see networkx docs for subgraph
+    disconnected = graph.copy()
+    disconnected.remove_node(cut_node)
+    components = sorted(nx.connected_components(disconnected), key=min)
+    return [graph.subgraph(comp | {cut_node}).copy() for comp in components]
 
 
 def _inter_crossover(
-    graph_A: Graph,
-    graph_B: Graph,
+    graph_a: Graph,
+    graph_b: Graph,
     cut_nodes: Set[str],
     rng: np.random.Generator,
 ) -> Tuple[Graph, Graph]:
@@ -344,8 +343,8 @@ def _inter_crossover(
     A pair of child networks.
     """
     cut_node = _random_choice(sorted(cut_nodes), rng)
-    components_A = _decompose_at(cut_node, graph_A)
-    components_B = _decompose_at(cut_node, graph_B)
+    components_a = _decompose_at(cut_node, graph_a)
+    components_b = _decompose_at(cut_node, graph_b)
     # i = rng.integers(0, len(components_A))
     # j = rng.integers(0, len(components_B))
     # stripped_A = nx.compose_all(
@@ -356,9 +355,9 @@ def _inter_crossover(
     # )  # remove jth comp
     # childg_A = nx.compose(stripped_A, components_B[j])  # graph_A - ith comp + jth comp
     # childg_B = nx.compose(stripped_B, components_A[i])  # graph_B - jth comp + ith comp
-    comp_a, comp_b = _choose_similar_components(components_A, components_B)
-    stripped_A = nx.compose_all([c for c in components_A if c is not comp_a])
-    stripped_B = nx.compose_all([c for c in components_B if c is not comp_b])
+    comp_a, comp_b = _choose_similar_components(components_a, components_b)
+    stripped_A = nx.compose_all([c for c in components_a if c is not comp_a])
+    stripped_B = nx.compose_all([c for c in components_b if c is not comp_b])
     childg_A = nx.compose(stripped_A, comp_b)
     childg_B = nx.compose(stripped_B, comp_a)
     return (childg_A, childg_B)
@@ -397,26 +396,24 @@ def _intra_crossover(parent: Network) -> Tuple[Network, Network]:
     raise NotImplementedError
 
 
-def _get_shared_cut_nodes(graph_A: Graph, graph_B: Graph) -> Set[str]:
-    shared_nodes = _get_shared_nodes(graph_A, graph_B)
-    cut_nodes_A = set(nx.articulation_points(graph_A))
-    cut_nodes_B = set(nx.articulation_points(graph_B))
-    return shared_nodes & cut_nodes_A & cut_nodes_B  # set intersection
-
-
-def _get_shared_nodes(graph_A: Graph, graph_B: Graph) -> Set[str]:
+def _get_shared_cut_nodes(graph_a: Graph, graph_b: Graph) -> Set[str]:
     """
-    Finds and returns the shared nodes between two networks.
+    Finds and returns the shared nodes between two networks that are
+    also cut vertices in both networks.
 
     Parameters:
-    nw_A (Graph): First network's graph.
-    nw_B (Graph): Second network's graph.
+    graph_a (Graph): First network's graph.
+    graph_b (Graph): Second network's graph.
 
     Returns:
-    A set of shared nodes between the two networks if any exist, otherwise None.
+    A set of cut vertices shared between the two networks.
     """
-    # use set intersection
-    return set(graph_A.nodes) & set(graph_B.nodes)
+    shared = set(graph_a) & set(graph_b)
+    return (
+        shared
+        & set(nx.articulation_points(graph_a))
+        & set(nx.articulation_points(graph_b))
+    )
 
 
 # MUTATION HELPERS
