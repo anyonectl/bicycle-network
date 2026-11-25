@@ -1,5 +1,5 @@
 from math import fsum
-from typing import Dict, List, Set, Tuple, TypedDict
+from typing import Dict, List, Sequence, Set, Tuple, TypedDict
 import numpy as np
 from geopandas import GeoDataFrame as gdf
 import bicycle_network.demand as dmnd
@@ -82,9 +82,10 @@ def run(
     demand_matrix: gdf,
     seed_points: gdf,
     grid: gdf,
-    rng: np.random.Generator,
     penalty: float = 0.2,
+    seed: int = 3581054352,
 ) -> Dict[int, Population]:
+    rng = np.random.default_rng(seed=seed)
     return _genetic_algorithm(
         start_pop,
         iterations,
@@ -413,7 +414,7 @@ def _inter_crossover(
     Returns:
     A pair of child networks.
     """
-    cut_node = str(rng.choice(sorted(cut_nodes)))
+    cut_node = _random_choice(sorted(cut_nodes), rng)
     components_A = _decompose_at(cut_node, graph_A)
     components_B = _decompose_at(cut_node, graph_B)
     # i = rng.integers(0, len(components_A))
@@ -509,7 +510,7 @@ def _mutate(
     A mutated version of the input network.
     """
     assert nx.is_connected(nw["graph"])
-    action = str(rng.choice(["add", "remove", "replace"], size=1)[0])
+    action = _random_choice(["add", "remove", "replace"], rng)
     match action:
         case "add":
             new_nw = _add_edge(nw, seed_points, rng)
@@ -677,6 +678,14 @@ def json_to_pop(data) -> Population:
         for nw_id, nw in data.items()
     }
     return pop
+
+
+def _random_choice[T](items: Sequence[T], rng: np.random.Generator) -> T:
+    """
+    Returns a randomly chosen element from `items`.
+    """
+    i = int(rng.integers(len(items)))
+    return items[i]
 
 
 # VISUALISATION
