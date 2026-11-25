@@ -22,52 +22,6 @@ class Network(TypedDict):
     graph: Graph  # irs/ips
 
 
-def copy_network(original: Network) -> Network:
-    new = copy.deepcopy(original)
-    assert id(new) != id(original)
-    assert id(new["graph"]) != id(original["graph"])
-    return new
-
-
-def copy_pop(original: Population) -> Population:
-    new = copy.deepcopy(original)
-    assert id(new) != id(original)
-    return new
-
-
-def network_to_jsonable(nw: Network) -> dict:
-    return {
-        "demand_covered": float(nw["demand_covered"]),
-        "graph": nx.node_link_data(nw["graph"], edges="edges"),
-    }
-
-
-def generations_to_jsonable(gens: Dict[int, Population]) -> dict:
-    return {
-        str(gen): {str(nw_id): network_to_jsonable(nw) for nw_id, nw in pop.items()}
-        for gen, pop in gens.items()
-    }
-
-
-def jsonable_to_network(data: dict) -> Network:
-    nw: Network = {
-        "demand_covered": float(data["demand_covered"]),
-        "graph": nx.node_link_graph(data["graph"]),
-    }
-    return nw
-
-
-def jsonable_to_pop(data: dict) -> Population:
-    pop: Population = {
-        int(nw_id): jsonable_to_network(nw) for nw_id, nw in data.items()
-    }
-    return pop
-
-
-def jsonable_to_gens(data: dict) -> Dict[int, Population]:
-    return {int(pop_id): jsonable_to_pop(pop) for pop_id, pop in data.items()}
-
-
 # MAIN
 
 
@@ -667,18 +621,46 @@ def _neighbour_lookup(seed_points: gdf) -> Dict[str, Set[str]]:
     }
 
 
-# VISUALISATION
+def copy_network(original: Network) -> Network:
+    new = copy.deepcopy(original)
+    assert id(new) != id(original)
+    assert id(new["graph"]) != id(original["graph"])
+    return new
 
 
-def plot_network():
-    """
-    Visualises a chromosome as a network, including the percentage of demand covered.
-    """
+def copy_pop(original: Population) -> Population:
+    new = copy.deepcopy(original)
+    assert id(new) != id(original)
+    return new
 
 
-def plot_generation():
-    """
-    Creates a scatter plot of a generation, where each blob is a chromosome (network),
-    the x axis is the total length of the network, and the y axis is the percentage of
-    total demand covered.
-    """
+def network_to_jsonable(nw: Network) -> dict:
+    return {
+        "demand_covered": float(nw["demand_covered"]),
+        "graph": nx.node_link_data(nw["graph"], edges="edges"),
+    }
+
+
+def generations_to_jsonable(gens: Dict[int, Population]) -> dict:
+    return {
+        str(gen): {str(nw_id): network_to_jsonable(nw) for nw_id, nw in pop.items()}
+        for gen, pop in gens.items()
+    }
+
+
+def jsonable_to_network(data: dict) -> Network:
+    return {
+        "demand_covered": float(data["demand_covered"]),
+        "graph": nx.node_link_graph(data["graph"], edges="edges"),
+    }
+
+
+def jsonable_to_pop(data: dict) -> Population:
+    pop: Population = {
+        int(nw_id): jsonable_to_network(nw) for nw_id, nw in data.items()
+    }
+    return pop
+
+
+def jsonable_to_gens(data: dict) -> Dict[int, Population]:
+    return {int(pop_id): jsonable_to_pop(pop) for pop_id, pop in data.items()}
