@@ -239,31 +239,39 @@ def plot_network(
     plt.show()
 
 
-def scatter(gens, n_edges_dict, save=False, output_path="../results/plots/"):
+def scatter(gens, budget=None, save=False, output_path="../results/plots/"):
     cmap = mplcm["viridis"]
     pop_ids = sorted(gens)
-    norm = Normalize(vmin=min(pop_ids), vmax=max(pop_ids))
+    norm = Normalize(vmin=pop_ids[0], vmax=pop_ids[-1])
 
     fig, ax = plt.subplots(figsize=(9, 7))
-
-    for pop_id, pop in gens.items():
-        x = np.array([n_edges_dict[nw_id] for nw_id in pop])
-        y = np.array([nw["demand_covered"] for nw in pop.values()])
+    for pop in pop_ids:
+        networks = list(gens[pop].values())
+        n_edges = [nw["graph"].number_of_edges() for nw in networks]
+        coverage = [nw["demand_covered"] for nw in networks]
         ax.scatter(
-            x,
-            y,
-            color=cmap(norm(pop_id)),
-            # s=26,
+            x=n_edges,
+            y=coverage,
+            color=cmap(norm(pop)),
             alpha=0.6,
             edgecolor="white",
             linewidth=0.5,
             zorder=2,
         )
 
+    if budget is not None:
+        ax.axvline(
+            budget,
+            color="red",
+            linestyle="--",
+            linewidth=1,
+            label=f"Budget ({budget} edges)",
+        )
+        ax.legend(frameon=False, loc="best")
+
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
-    cbar = fig.colorbar(sm, ax=ax, pad=0.02)
-    cbar.set_label("Generation")
+    fig.colorbar(sm, ax=ax, pad=0.02).set_label("Generation")
 
     # xmin = 125
     # xmax = 140
@@ -276,7 +284,6 @@ def scatter(gens, n_edges_dict, save=False, output_path="../results/plots/"):
     ax.set_title("Network performance by generation")
     ax.grid(True, alpha=0.2)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.legend(frameon=False, loc="best")
     fig.tight_layout()
 
     if save:
@@ -286,3 +293,4 @@ def scatter(gens, n_edges_dict, save=False, output_path="../results/plots/"):
             bbox_inches="tight",
         )
     plt.show()
+    plt.close(fig)

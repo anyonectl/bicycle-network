@@ -111,19 +111,12 @@ print(f"Mutation probability: {MUTATE_PROB}")
 # ## Save generations as JSON
 
 # %%
-filename = "generations_261124"
+filename = "generations_261125"
 with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
     json.dump(ga.generations_to_jsonable(generations), json_file, indent=4)
 
 # %% [markdown]
 # # Evaluation/plots
-
-# %%
-# Calculate number of edges in each network
-n_edges_dict = {}
-for pop in generations.values():
-    for nw_id, nw in pop.items():
-        n_edges_dict[nw_id] = nw["graph"].number_of_edges()
 
 # %% [markdown]
 # ## Plot
@@ -134,10 +127,10 @@ for pop in generations.values():
 # y-axis the percentage of demand met
 
 # %%
-bcnwplt.scatter(generations, n_edges_dict, save=True, output_path=PLOT_PATH)
+bcnwplt.scatter(generations, BUDGET, save=True, output_path=PLOT_PATH)
 
 # %%
-for pop_id in [0, N_ITE // 2, N_ITE - 1]:
+for pop_id in [0, N_ITE // 4, N_ITE // 2, (N_ITE * 3) // 4, N_ITE]:
     bcnwplt.plot_population_nx(
         generations[pop_id],
         seed_points,
