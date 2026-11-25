@@ -3,7 +3,6 @@ from typing import Dict, List, Sequence, Set, Tuple, TypedDict
 import numpy as np
 from geopandas import GeoDataFrame as gdf
 import bicycle_network.demand as dmnd
-import bicycle_network.plot as bcnwplt
 import bicycle_network.graph
 import networkx as nx
 from networkx.classes.graph import Graph
@@ -86,6 +85,7 @@ def run(
     seed: int = 3581054352,
 ) -> Dict[int, Population]:
     rng = np.random.default_rng(seed=seed)
+    neighbours = _neighbour_lookup(seed_points)
     return _genetic_algorithm(
         start_pop,
         iterations,
@@ -95,7 +95,7 @@ def run(
         budget,
         max_edges,
         penalty,
-        seed_points,
+        neighbours,
         grid,
         rng,
     )
@@ -113,7 +113,7 @@ def _genetic_algorithm(
     budget: int,
     max_edges: int,
     penalty: float,
-    seed_points: gdf,
+    neighbours: dict[str, set[str]],
     grid: gdf,
     rng: np.random.Generator,
 ) -> Dict[int, Population]:
@@ -128,7 +128,7 @@ def _genetic_algorithm(
         assert id(parents) != id(pop)
         children = _crossover(n, parents, rng)
         assert id(children) != id(parents)
-        mutated = _mutation(children, seed_points, grid, rng, mutation_probability)
+        mutated = _mutation(children, neighbours, grid, rng, mutation_probability)
         assert id(mutated) != id(children)
         evaluated = _evaluation(mutated, demand_matrix, budget, max_edges, penalty)
         assert id(evaluated) != id(mutated)
@@ -222,7 +222,7 @@ def _crossover(n: int, mating_pool: Population, rng: np.random.Generator) -> Pop
 
 def _mutation(
     pop: Population,
-    seed_points: gdf,
+    neighbours: dict[str, set[str]],
     grid: gdf,
     rng: np.random.Generator,
     mutation_probability=0.3,
@@ -245,32 +245,7 @@ def _mutation(
     ).tolist()
     mutated: Population = {}
     for nw_id, nw in pop.items():
-        mutated[nw_id] = _mutate(nw, seed_points, grid, rng) if mutate[nw_id] else nw
-        if not nx.is_connected(mutated[nw_id]["graph"]):
-            print(f"see network id: {nw_id}")
-            print("first plot: pop before mutation")
-            bcnwplt.plot_population_dict(
-                pop,
-                seed_points,
-                grid,
-                demand_type="absolute",
-                save=True,
-                output_path="../results/plots/",
-                filename=f"connectivity_BEFORE_mutation_nw{nw_id}",
-                gen=-99,
-            )
-            print(f"see network id: {nw_id}")
-            print("second plot: pop after mutation")
-            bcnwplt.plot_population_dict(
-                mutated,
-                seed_points,
-                grid,
-                demand_type="absolute",
-                save=True,
-                output_path="../results/plots/",
-                filename=f"connectivity_AFTER_mutation_nw{nw_id}",
-                gen=-100,
-            )
+        mutated[nw_id] = _mutate(nw, neighbours, grid, rng) if mutate[nw_id] else nw
     return mutated
 
 
@@ -494,7 +469,7 @@ def _get_shared_nodes(graph_A: Graph, graph_B: Graph) -> Set[str]:
 
 
 def _mutate(
-    nw: Network, seed_points: gdf, grid: gdf, rng: np.random.Generator
+    nw: Network, neighbours: dict[str, set[str]], grid: gdf, rng: np.random.Generator
 ) -> Network:
     """
     Mutate the given network either by adding, removing or
@@ -513,13 +488,13 @@ def _mutate(
     action = _random_choice(["add", "remove", "replace"], rng)
     match action:
         case "add":
-            new_nw = _add_edge(nw, seed_points, rng)
+            new_nw = _add_edge(nw, neighbours, rng)
             assert id(nw) != id(new_nw)
         case "remove":
-            new_nw = _remove_edge(nw, seed_points, grid, rng)
+            new_nw = _remove_edge(nw, rng)
             assert id(nw) != id(new_nw)
         case "replace":
-            new_nw = _replace_edge(nw, seed_points, grid, rng)
+            new_nw = _replace_edge(nw, neighbours, rng)
             assert id(nw) != id(new_nw)
         case _:
             raise NotImplementedError
@@ -527,7 +502,9 @@ def _mutate(
     return new_nw
 
 
-def _add_edge(nw: Network, seed_points: gdf, rng: np.random.Generator) -> Network:
+def _add_edge(
+    nw: Network, neighbour_lookup: dict[str, set[str]], rng: np.random.Generator
+) -> Network:
     """
     Adds an edge to the network that connects an existing node
     in the network with a neighbouring node not already in the network.
@@ -565,11 +542,7 @@ def _add_edge(nw: Network, seed_points: gdf, rng: np.random.Generator) -> Networ
     node_pool = {}
     while len(node_pool) == 0:
         chosen_node = str(rng.choice(nodes))  # type: ignore
-        neighbours = set(
-            seed_points.loc[seed_points["id"] == chosen_node, "neighbours"]
-            .values[0]
-            .values()  # type: ignore
-        )
+        neighbours = neighbour_lookup[chosen_node]
         node_pool = neighbours - nodes  # set difference
     new_node = str(rng.choice(sorted(node_pool)))
     assert new_node not in nw["graph"]
@@ -580,7 +553,7 @@ def _add_edge(nw: Network, seed_points: gdf, rng: np.random.Generator) -> Networ
     return mutated_nw
 
 
-def _remove_edge(nw: Network, seed_points, grid, rng: np.random.Generator) -> Network:
+def _remove_edge(nw: Network, rng: np.random.Generator) -> Network:
     """
     Removes an edge from one of the paths of the input network.
     The edge is only removed if it is not a bridge, i.e. removing
@@ -618,20 +591,15 @@ def _remove_edge(nw: Network, seed_points, grid, rng: np.random.Generator) -> Ne
     assert id(nw) != id(mutated_nw)
     mutated_nw["graph"].remove_edge(u, v)
     assert nx.is_connected(mutated_nw["graph"])
-    if not nx.is_connected(mutated_nw["graph"]):
-        print(f"nw: {nw}")
-        print(f"mutated_nw: {mutated_nw}")
-        bcnwplt.plot_network(nw, seed_points, grid)
-        bcnwplt.plot_network(mutated_nw, seed_points, grid)
     return mutated_nw
 
 
 def _replace_edge(
-    nw: Network, seed_points: gdf, grid: gdf, rng: np.random.Generator
+    nw: Network, neighbours: dict[str, set[str]], rng: np.random.Generator
 ) -> Network:
     """ """
-    new_nw = _remove_edge(nw, seed_points, grid, rng)
-    return _add_edge(new_nw, seed_points, rng)
+    new_nw = _remove_edge(nw, rng)
+    return _add_edge(new_nw, neighbours, rng)
 
 
 # EVALUATION HELPERS
@@ -686,6 +654,17 @@ def _random_choice[T](items: Sequence[T], rng: np.random.Generator) -> T:
     """
     i = int(rng.integers(len(items)))
     return items[i]
+
+
+def _neighbour_lookup(seed_points: gdf) -> Dict[str, Set[str]]:
+    """
+    Returns a dict that maps every seed point ID to a set containing
+    their neighbour seed IDs.
+    """
+    return {
+        str(cell_id): {str(neighbour_id) for neighbour_id in neighbours.values()}
+        for cell_id, neighbours in zip(seed_points["id"], seed_points["neighbours"])
+    }
 
 
 # VISUALISATION
