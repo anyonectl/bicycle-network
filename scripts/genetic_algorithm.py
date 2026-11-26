@@ -59,6 +59,7 @@ start_pop = ga.convert_start_json_to_pop(data)
 
 # %%
 iterations = 100
+tournament_size = 3
 mutation_probability = 0.4
 m = 50
 max_edges = int(seed_points["neighbours"].apply(len).sum() // 2)
@@ -67,8 +68,9 @@ budget = max_edges // 5
 generations = ga.run(
     start_pop,
     iterations,
+    budget,
+    tournament_size,
     mutation_probability,
-    m,
     demand_matrix,
     seed_points,
     grid,
