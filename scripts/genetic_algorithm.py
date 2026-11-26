@@ -59,11 +59,11 @@ start_pop = ga.convert_start_json_to_pop(data)
 # ## Run GA
 
 # %%
-iterations = 50
+iterations = 100
 tournament_size = 3
 elitism = False
 n_elites = 1
-mutation_probability = 0.4
+mutation_probability = 0.3
 max_edges = int(seed_points["neighbours"].apply(len).sum() // 2)
 budget = max_edges // 5
 
