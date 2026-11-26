@@ -96,7 +96,6 @@ for pop_id in [0, 10, 19]:
         gens[pop_id],
         seed_points,
         grid,
-        demand_type="absolute",
         save=True,
         output_path=PLOT_PATH,
         filename="mutate_and_crossover",

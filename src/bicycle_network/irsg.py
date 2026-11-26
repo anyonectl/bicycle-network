@@ -18,7 +18,6 @@ def select_next_node(
     irs: Dict[int, List[str]],
     seed_points: gpd.GeoDataFrame,
     rng: np.random.Generator,
-    demand_type: str,
 ):
     current_node = irs[path_id][-1]
     previous_node = irs[path_id][-2] if len(irs[path_id]) > 1 else current_node
@@ -50,17 +49,7 @@ def select_next_node(
     )
 
     # Calculate probabilities for each node in the VNS
-    match demand_type:
-        case "absolute":
-            demand_series = vns["total_demand"]
-        case "share":
-            demand_series = vns["demand_share"]
-        case _:
-            raise ValueError(
-                f"demand_type must be 'absolute' or 'share', was: {demand_type}"
-            )
-
-    vns["combined"] = vns["direction_bias"] * demand_series
+    vns["combined"] = vns["direction_bias"] * vns["total_demand"]
     prob_sum = float(vns["combined"].sum())
     vns["probability"] = vns["combined"] / prob_sum
 
@@ -86,7 +75,6 @@ def generate_network(
     max_nodes: int,
     seed_points: gpd.GeoDataFrame,
     rng: np.random.Generator,
-    demand_type: str,
 ):
     """
     Form Initial Node Set (INS) from the first k nodes. k must be larger than max_paths
@@ -121,7 +109,7 @@ def generate_network(
 
         # Build paths
         for _ in range(max_nodes - 1):  # -1 because we already added first_node
-            tmp_irs, finished = select_next_node(i, irs, seed_points, rng, demand_type)
+            tmp_irs, finished = select_next_node(i, irs, seed_points, rng)
             if finished:  # stop if no node in VNS is possible
                 break
             irs = tmp_irs
@@ -137,7 +125,6 @@ def generate_population(
     seed_points: gpd.GeoDataFrame,
     demand_matrix: gpd.GeoDataFrame,
     rng: np.random.Generator,
-    demand_type: str = "share",
 ) -> Dict[int, dict]:
     """
     Create a population of {n} connected networks, where each network
@@ -157,7 +144,6 @@ def generate_population(
         seed_points (gpd.GeoDataFrame):
         demand_matrix (gpd.GeoDataFrame):
         rng (numpy.random.Generator):
-        demand_type (str): "share" or "absolute"
 
     Returns:
     A dictionary of dictionaries representing a population of networks.
@@ -167,7 +153,7 @@ def generate_population(
     pbar = tqdm(desc=f"Generate {n} connected networks. Loop iterations:", total=n * 15)
     i = 0
     while i < n:
-        irs = generate_network(k, max_paths, max_nodes, seed_points, rng, demand_type)
+        irs = generate_network(k, max_paths, max_nodes, seed_points, rng)
         if is_connected(irs):
             nw = create_dict(irs, demand_matrix)
             population[i] = nw
@@ -190,7 +176,7 @@ def create_dict(irs: Dict[int, List[str]], demand_matrix: gpd.GeoDataFrame) -> D
     # where paths is a dict with path_id as keys (integers) and ordered cell_ids as values
     node_list = get_nodes(irs)
     nw = {
-        "demand_covered": network_demand_coverage(node_list, demand_matrix),
+        "fitness": network_demand_coverage(node_list, demand_matrix),
         "paths": irs,
     }
     return nw
@@ -272,7 +258,7 @@ def connect_graph(components):
 def json_to_pop(data):
     pop = {
         int(nw_id): {
-            "demand_covered": nw["demand_covered"],
+            "fitness": nw["fitness"],
             "paths": {int(path_id): path for path_id, path in nw["paths"].items()},
         }
         for nw_id, nw in data.items()

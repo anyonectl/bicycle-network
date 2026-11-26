@@ -67,16 +67,13 @@ def plot_population_gdf(
     plt.show()
 
 
-def plot_population_dict(
+def start_population(
     pop,
     seed_points: gdf,
     grid: gdf,
-    demand_type: str,
     save=False,
     output_path="../results/plots/",
-    filename="pop",
-    title="",
-    gen: int = 0,
+    filename="start_population",
 ):
     n_pop = len(pop)
     n_cols = 4
@@ -89,7 +86,7 @@ def plot_population_dict(
 
     for i, (nw_id, nw) in enumerate(pop.items()):
         ax = axes[i]
-        demand_coverage = nw["demand_covered"]
+        fitness = nw["fitness"]
         path_ids = list(nw["paths"].keys())
         colors = cmap(np.linspace(0, 1, len(path_ids)))
         grid.boundary.plot(ax=ax, color="grey", lw=1)
@@ -108,23 +105,22 @@ def plot_population_dict(
         ax.set_ylim(ymin, ymax)
         ax.set_aspect("equal", adjustable="box")
         # ax.legend()
-        ax.set_title(f"Network {nw_id}, demand coverage: {demand_coverage:.2f} %")
+        ax.set_title(f"Network {nw_id}, fitness: {fitness:.2f} %")
         ax.set_axis_off()
 
     for ax in axes[n_pop:]:
         ax.set_axis_off()
 
-    fig.suptitle(f"Gen. {gen}", fontsize=16)
+    fig.suptitle("Start population", fontsize=16)
     plt.tight_layout()
-
     if save:
-        gen_str = f"gen{gen}"
         plt.savefig(
-            f"{output_path}{filename}_{gen_str}_{current_time()}.png",
+            f"{output_path}{filename}_{current_time()}.png",
             dpi=300,
             bbox_inches="tight",
         )
     plt.show()
+    plt.close()
 
 
 def _draw_network(ax, graph, seed_points: gdf, grid: gdf) -> None:
@@ -166,7 +162,7 @@ def network(
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     _draw_network(ax, nw["graph"], seed_points, grid)
     ax.set_title(
-        f"Network: {nw['demand_covered']:.1f} % demand, "
+        f"Network: {nw['fitness']:.1f} % demand, "
         f"{nw['graph'].number_of_edges()} edges"
     )
     plt.tight_layout()
@@ -184,11 +180,9 @@ def population(
     pop,
     seed_points: gdf,
     grid: gdf,
-    demand_type: str,
     save=False,
     output_path="../results/plots/",
     filename="pop",
-    title="",
     gen: int = 0,
 ):
     n_pop = len(pop)
@@ -199,7 +193,7 @@ def population(
     for ax, (nw_id, nw) in zip(axes, pop.items()):
         _draw_network(ax, nw["graph"], seed_points, grid)
         ax.set_title(
-            f"Network {nw_id}: {nw['demand_covered']:.1f} % demand, "
+            f"Network {nw_id}: {nw['fitness']:.1f} % demand, "
             f"{nw['graph'].number_of_edges()} edges"
         )
     for ax in axes[n_pop:]:
@@ -226,10 +220,10 @@ def scatter(gens, budget=None, save=False, output_path="../results/plots/"):
     for pop in pop_ids:
         networks = list(gens[pop].values())
         n_edges = [nw["graph"].number_of_edges() for nw in networks]
-        coverage = [nw["demand_covered"] for nw in networks]
+        fitness = [nw["fitness"] for nw in networks]
         ax.scatter(
             x=n_edges,
-            y=coverage,
+            y=fitness,
             color=cmap(norm(pop)),
             alpha=0.6,
             edgecolor="white",
