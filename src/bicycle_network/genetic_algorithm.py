@@ -306,24 +306,20 @@ def _mutate(
     A mutated version of the input network.
     """
     assert nx.is_connected(nw["graph"])
-    action = _random_choice(["add", "remove_node", "remove_edge", "replace"], rng)
+    action = _random_choice(["add", "remove", "replace", "remove_edge"], rng)
     match action:
         case "add":
-            new_nw = _add_node(nw, neighbours, rng)
-            assert id(nw) != id(new_nw)
-        case "remove_node":
-            new_nw = _remove_node(nw, rng)
-            assert id(nw) != id(new_nw)
-        case "remove_edge":
-            new_nw = _remove_edge(nw, rng)
-            # assert id(nw) != id(new_nw) # fails
+            nw = _add_node(nw, neighbours, rng)
+        case "remove":
+            nw = _remove_node(nw, rng)
         case "replace":
-            new_nw = _replace_edge(nw, neighbours, rng)
-            assert id(nw) != id(new_nw)
+            nw = _replace_node(nw, neighbours, rng)
+        case "remove_edge":
+            nw = _remove_edge(nw, rng)
         case _:
             raise NotImplementedError
-    assert nx.is_connected(new_nw["graph"])
-    return new_nw
+    assert nx.is_connected(nw["graph"])
+    return nw
 
 
 def _add_node(
@@ -361,20 +357,19 @@ def _add_node(
     8. Should this be its own path, or should it be a part of the path with the
         original chosen node? I guess it shouldn't matter?
     """
-    nodes = nw["graph"].nodes
-    chosen_node = ""
-    node_pool = {}
-    while len(node_pool) == 0:
-        chosen_node = str(rng.choice(nodes))  # type: ignore
-        neighbours = neighbour_lookup[chosen_node]
-        node_pool = neighbours - nodes  # set difference
-    new_node = str(rng.choice(sorted(node_pool)))
-    assert new_node not in nw["graph"]
-    mutated_nw = copy_network(nw)
-    assert id(nw) != id(mutated_nw)
-    mutated_nw["graph"].add_edge(chosen_node, new_node)
-    assert id(nw) != id(mutated_nw)
-    return mutated_nw
+    graph = nw["graph"]
+    nodes = set(graph)
+    possible_pairs = sorted(
+        (original_node, new_node)
+        for original_node in nodes
+        for new_node in neighbour_lookup[original_node] - nodes
+    )
+    if not possible_pairs:
+        return nw
+    original_node, new_node = _random_choice(possible_pairs, rng)
+    mutated_graph = graph.copy()
+    mutated_graph.add_edge(original_node, new_node)
+    return _create_network(mutated_graph)
 
 
 def _remove_node(nw: Network, rng: np.random.Generator) -> Network:
@@ -422,24 +417,22 @@ def _remove_edge(nw: Network, rng: np.random.Generator) -> Network:
     """
     graph = nw["graph"]
     bridges = {frozenset(edge) for edge in nx.bridges(graph)}
-    feasible_edges = sorted(
+    removable_edges = sorted(
         tuple(sorted(edge) for edge in graph.edges if frozenset(edge) not in bridges)
     )
-    if not feasible_edges:
+    if not removable_edges:
         return nw
-    u, v = _random_choice(feasible_edges, rng)
+    u, v = _random_choice(removable_edges, rng)
     mutated_graph = graph.copy()
-    assert id(graph) != id(mutated_graph)
     mutated_graph.remove_edge(u, v)
-    assert nx.is_connected(mutated_graph)
     return _create_network(mutated_graph)
 
 
-def _replace_edge(
+def _replace_node(
     nw: Network, neighbours: dict[str, set[str]], rng: np.random.Generator
 ) -> Network:
     """ """
-    new_nw = _remove_edge(nw, rng)
+    new_nw = _remove_node(nw, rng)
     return _add_node(new_nw, neighbours, rng)
 
 
