@@ -190,7 +190,7 @@ def create_dict(irs: Dict[int, List[str]], demand_matrix: gpd.GeoDataFrame) -> D
     # where paths is a dict with path_id as keys (integers) and ordered cell_ids as values
     node_list = get_nodes(irs)
     nw = {
-        "demand_covered": network_demand_coverage(node_list, demand_matrix),
+        "fitness": network_demand_coverage(node_list, demand_matrix),
         "paths": irs,
     }
     return nw
@@ -272,7 +272,7 @@ def connect_graph(components):
 def json_to_pop(data):
     pop = {
         int(nw_id): {
-            "demand_covered": nw["demand_covered"],
+            "fitness": nw["fitness"],
             "paths": {int(path_id): path for path_id, path in nw["paths"].items()},
         }
         for nw_id, nw in data.items()
