@@ -20,6 +20,7 @@ def run(
     iterations: int,
     budget: int,
     tournament_size: int,
+    n_elites: int,
     mutation_probability: float,
     seed_points: gdf,
     grid: gdf,
@@ -35,7 +36,8 @@ def run(
     i = 1
     # assert id(pop) == id(start_pop)  # fails
     while i <= iterations:  # or until some other convergence criteria
-        children = _reproduction(pop, n, tournament_size, budget, rng)
+        elites = _find_best_networks(pop, n_elites, budget)
+        children = _reproduction(pop, n - n_elites, tournament_size, budget, rng)
         assert id(children) != id(pop)
         mutated = _mutation(children, neighbours, grid, rng, mutation_probability)
         assert id(mutated) != id(children)
@@ -44,11 +46,19 @@ def run(
             demand_matrix,
         )
         assert id(evaluated) != id(mutated)
-        gens[i] = evaluated
-        pop = evaluated
+        pop = dict(enumerate(elites + list(evaluated.values())))
+        gens[i] = pop
         assert id(pop) != id(start_pop)
         i = i + 1
     return gens
+
+
+def _find_best_networks(pop: Population, n_elites: int, budget: int) -> List[Network]:
+    """
+    Find the `n_elites` best networks of a population and return them in a list.
+    """
+    ranked = sorted(pop.values(), key=lambda nw: _rank(nw, budget), reverse=True)
+    return ranked[:n_elites]
 
 
 def _reproduction(
