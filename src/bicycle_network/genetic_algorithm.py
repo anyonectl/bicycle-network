@@ -1,6 +1,7 @@
 from typing import Dict, List, Sequence, Set, Tuple, TypedDict
 import numpy as np
 from geopandas import GeoDataFrame as gdf
+from shapely import Point
 import bicycle_network.demand as dmnd
 import bicycle_network.graph
 import networkx as nx
@@ -30,8 +31,9 @@ def run(
 ) -> Dict[int, Population]:
     rng = np.random.default_rng(seed=seed)
     neighbours = _neighbour_lookup(seed_points)
+    euclidean_distances = _distance_lookup(seed_points, demand_matrix)
     n = len(start_pop)
-    pop = _evaluation(start_pop, demand_matrix)
+    pop = _evaluation(start_pop, euclidean_distances, demand_matrix)
     gens: dict[int, Population] = {}
     gens[0] = pop
     i = 1
@@ -48,6 +50,7 @@ def run(
         assert id(mutated) != id(children)
         evaluated = _evaluation(
             mutated,
+            euclidean_distances,
             demand_matrix,
         )
         assert id(evaluated) != id(mutated)
@@ -276,15 +279,23 @@ def _mutation(
     return mutated
 
 
-def _evaluation(pop: Population, demand_matrix: gdf) -> Population:
+def _evaluation(
+    pop: Population, dists: dict[str, dict[str, float]], demand_matrix: gdf
+) -> Population:
     """
     Calculate the fitness for each network in the population.
 
-    Returns a population of networks with recalculated fitness scores.
+    Parameters:
+    pop:
+    dists: Mapping between seed point pairs and the euclidean distance between them
+
+
+    Returns:
+    a population of networks with recalculated fitness scores.
     """
     return {
         nw_id: {
-            "fitness": _calculate_fitness(nw["graph"], demand_matrix),
+            "fitness": _calculate_fitness(nw["graph"], dists, demand_matrix),
             "graph": nw["graph"],
         }
         for nw_id, nw in pop.items()
@@ -443,8 +454,45 @@ def _replace_node(
 # EVALUATION HELPERS
 
 
-def _calculate_fitness(graph: Graph, demand_matrix) -> float:
-    return dmnd.network_demand_coverage(set(graph), demand_matrix)
+def _calculate_fitness(
+    graph: Graph,
+    euclidean_dists: dict[str, dict[str, float]],
+    demand_matrix: gdf,
+    demand_weight: float = 0.8,
+    directness_weight: float = 0.2,
+) -> float:
+    # TODO: Include directness
+    demand_coverage = dmnd.network_demand_coverage(set(graph), demand_matrix)
+    avg_directness = _calculate_directness(graph, euclidean_dists)
+    return demand_weight * demand_coverage + directness_weight * avg_directness
+
+
+def _calculate_directness(
+    graph: Graph, euclidean_dists: dict[str, dict[str, float]]
+) -> float:
+    """
+    TODO: Directness between important seed point pairs should count more
+    than the directness between non-important seed point pairs.
+    Assumes unweighted, undirected, connected graph for shortest path distances.
+
+    Szell: "Directness measures the average ratios of euclidian distances
+         versus shortest path distances on the network"
+
+    Divide by edge_length at the end to convert units.
+    """
+    n_pairs = 0
+    total_ratio = 0.0
+    for source, sp_dists in nx.all_pairs_shortest_path_length(graph):
+        for target, sp_dist in sp_dists.items():
+            if source == target:
+                continue
+            total_ratio += euclidean_dists[source][target] / sp_dist
+            n_pairs += 1
+    if n_pairs == 0:
+        return 0.0
+    u, v = next(iter(graph.edges))
+    edge_length = euclidean_dists[u][v]
+    return total_ratio / n_pairs / edge_length
 
 
 # OTHER HELPERS
@@ -462,7 +510,7 @@ def _random_choice[T](items: Sequence[T], rng: np.random.Generator) -> T:
     return items[i]
 
 
-def _neighbour_lookup(seed_points: gdf) -> Dict[str, Set[str]]:
+def _neighbour_lookup(seed_points: gdf) -> dict[str, Set[str]]:
     """
     Returns a dict that maps every seed point ID to a set containing
     their neighbour seed IDs.
@@ -471,6 +519,18 @@ def _neighbour_lookup(seed_points: gdf) -> Dict[str, Set[str]]:
         str(cell_id): {str(neighbour_id) for neighbour_id in neighbours.values()}
         for cell_id, neighbours in zip(seed_points["id"], seed_points["neighbours"])
     }
+
+
+def _distance_lookup(
+    seed_points: gdf, demand_matrix: gdf
+) -> dict[str, dict[str, float]]:
+    id_to_centroid: dict[str, Point] = seed_points.copy().set_index("id")["geometry"].to_dict()  # type: ignore
+    distances = {point_id: {} for point_id in id_to_centroid}
+    for u, v in zip(demand_matrix["u"], demand_matrix["v"]):
+        dist = id_to_centroid[u].distance(id_to_centroid[v])
+        distances[u][v] = dist
+        distances[v][u] = dist
+    return distances
 
 
 def copy_network(original: Network) -> Network:

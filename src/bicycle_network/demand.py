@@ -65,7 +65,7 @@ def network_demand_coverage(
         & demand_matrix["v"].isin(nodes_in_network)
     ].copy()
     network_demand_sum = pairs_in_network["demand"].sum()
-    return network_demand_sum * 100 / total_demand
+    return network_demand_sum / total_demand
 
 
 # Code from NumPy docs

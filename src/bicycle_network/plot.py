@@ -105,7 +105,7 @@ def start_population(
         ax.set_ylim(ymin, ymax)
         ax.set_aspect("equal", adjustable="box")
         # ax.legend()
-        ax.set_title(f"Network {nw_id}, fitness: {fitness:.2f} %")
+        ax.set_title(f"Network {nw_id}, fitness: {fitness:.4f} %")
         ax.set_axis_off()
 
     for ax in axes[n_pop:]:
@@ -162,7 +162,7 @@ def network(
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     _draw_network(ax, nw["graph"], seed_points, grid)
     ax.set_title(
-        f"Network: {nw['fitness']:.1f} % demand, "
+        f"Network: {nw['fitness']:.4f} fitness, "
         f"{nw['graph'].number_of_edges()} edges"
     )
     plt.tight_layout()
@@ -193,7 +193,7 @@ def population(
     for ax, (nw_id, nw) in zip(axes, pop.items()):
         _draw_network(ax, nw["graph"], seed_points, grid)
         ax.set_title(
-            f"Network {nw_id}: {nw['fitness']:.1f} % demand, "
+            f"Network {nw_id}: {nw['fitness']:.4f} fitness, "
             f"{nw['graph'].number_of_edges()} edges"
         )
     for ax in axes[n_pop:]:
