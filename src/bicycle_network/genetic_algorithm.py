@@ -7,21 +7,12 @@ import networkx as nx
 from networkx.classes.graph import Graph
 import copy
 
-# Gene: a path consisting of several edges
-# Chromosome: a candidate solution (i.e. a network) consisting of genes
-# Population: a collection of candidate solutions
-# Generation: the population in a given iteration of the genetic algorithm
-
-# TYPE ALIASES
 type Population = Dict[int, Network]
 
 
 class Network(TypedDict):
     fitness: float
     graph: Graph  # irs/ips
-
-
-# MAIN
 
 
 def run(
@@ -37,37 +28,10 @@ def run(
 ) -> Dict[int, Population]:
     rng = np.random.default_rng(seed=seed)
     neighbours = _neighbour_lookup(seed_points)
-    return _genetic_algorithm(
-        start_pop,
-        iterations,
-        budget,
-        tournament_size,
-        mutation_probability,
-        neighbours,
-        grid,
-        demand_matrix,
-        rng,
-    )
-
-
-# ORCHESTRATOR
-
-
-def _genetic_algorithm(
-    start_pop: Population,
-    iterations: int,
-    budget: int,
-    tournament_size: int,
-    mutation_probability: float,
-    neighbours: dict[str, set[str]],
-    grid: gdf,
-    demand_matrix: gdf,
-    rng: np.random.Generator,
-) -> Dict[int, Population]:
     n = len(start_pop)
-    gens = {}
-    gens[0] = start_pop
     pop = _evaluation(start_pop, demand_matrix)
+    gens: dict[int, Population] = {}
+    gens[0] = pop
     i = 1
     # assert id(pop) == id(start_pop)  # fails
     while i <= iterations:  # or until some other convergence criteria
@@ -85,17 +49,6 @@ def _genetic_algorithm(
         assert id(pop) != id(start_pop)
         i = i + 1
     return gens
-
-
-# HOW MANY PARENTS CHOSEN FOR PRODUCTION? CAN BE USER CHOICE
-# MUTATION OR not can be decided by probability
-# can also keep some parents
-# everything should be randomised
-# important to allow some of the not so fit route sets to survive to next generation
-#   as they can help make better solutions later
-# up to decicde if using 'elitism' or not
-
-# KEY FUNCTIONS
 
 
 def _reproduction(
