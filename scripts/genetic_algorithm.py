@@ -90,12 +90,9 @@ generations = ga.run(
     N_ITE,
     MUTATE_PROB,
     M,
-    BUDGET,
-    MAX_EDGES,
     demand_matrix,
     seed_points,
     grid,
-    PENALTY,
     SEED,
 )
 

@@ -18,7 +18,7 @@ type Population = Dict[int, Network]
 
 
 class Network(TypedDict):
-    demand_covered: float
+    fitness: float
     graph: Graph  # irs/ips
 
 
@@ -30,12 +30,9 @@ def run(
     iterations: int,
     mutation_probability: float,
     m: int,
-    budget: int,
-    max_edges: int,
     demand_matrix: gdf,
     seed_points: gdf,
     grid: gdf,
-    penalty: float = 0.2,
     seed: int = 3581054352,
 ) -> Dict[int, Population]:
     rng = np.random.default_rng(seed=seed)
@@ -46,9 +43,6 @@ def run(
         mutation_probability,
         m,
         demand_matrix,
-        budget,
-        max_edges,
-        penalty,
         neighbours,
         grid,
         rng,
@@ -64,9 +58,6 @@ def _genetic_algorithm(
     mutation_probability: float,
     m: int,
     demand_matrix: gdf,
-    budget: int,
-    max_edges: int,
-    penalty: float,
     neighbours: dict[str, set[str]],
     grid: gdf,
     rng: np.random.Generator,
@@ -84,7 +75,10 @@ def _genetic_algorithm(
         assert id(children) != id(parents)
         mutated = _mutation(children, neighbours, grid, rng, mutation_probability)
         assert id(mutated) != id(children)
-        evaluated = _evaluation(mutated, demand_matrix, budget, max_edges, penalty)
+        evaluated = _evaluation(
+            mutated,
+            demand_matrix,
+        )
         assert id(evaluated) != id(mutated)
         # selected = _selection(evaluated, n)
         # gens[i] = selected
@@ -167,8 +161,8 @@ def _crossover(n: int, mating_pool: Population, rng: np.random.Generator) -> Pop
         childg_A, childg_B = _inter_crossover(
             parent_A["graph"], parent_B["graph"], feasible_cuts, rng
         )
-        child_A: Network = {"demand_covered": 0.0, "graph": childg_A}
-        child_B: Network = {"demand_covered": 0.0, "graph": childg_B}
+        child_A: Network = {"fitness": 0.0, "graph": childg_A}
+        child_B: Network = {"fitness": 0.0, "graph": childg_B}
         child_pop[i] = child_A
         child_pop[i + 1] = child_B
         i = i + 2
@@ -204,14 +198,19 @@ def _mutation(
     return mutated
 
 
-def _evaluation(
-    pop: Population, demand_matrix, budget, max_edges, penalty
-) -> Population:
+def _evaluation(pop: Population, demand_matrix: gdf) -> Population:
     """
-    1. Calculate the percentage of demand covered for each network in the population.
-    2. Choose only the n fittest? (Not now - For now, let's just do the above)
+    Calculate the fitness for each network in the population.
+
+    Returns a population of networks with recalculated fitness scores.
     """
-    return _recalculcate_fitness(pop, demand_matrix, budget, max_edges, penalty)
+    return {
+        nw_id: {
+            "fitness": _calculate_fitness(nw["graph"], demand_matrix),
+            "graph": nw["graph"],
+        }
+        for nw_id, nw in pop.items()
+    }
 
 
 def _selection(pop: Population, n: int, rng) -> Population:
@@ -240,12 +239,12 @@ def _selection(pop: Population, n: int, rng) -> Population:
 
 
 def _sum_demand_coverage(pop: Population) -> float:
-    return fsum([nw.get("demand_covered") for nw in pop.values()])
+    return fsum([nw.get("fitness") for nw in pop.values()])
 
 
 def _get_probabilities(pop: Population) -> np.ndarray:
     demand_sum = _sum_demand_coverage(pop)
-    demand_shares = [nw.get("demand_covered") * 100 / demand_sum for nw in pop.values()]
+    demand_shares = [nw.get("fitness") * 100 / demand_sum for nw in pop.values()]
     return _normalise(demand_shares)
 
 
@@ -559,40 +558,15 @@ def _replace_edge(
 # EVALUATION HELPERS
 
 
-# TODO "demand_covered" in the data structure should be called "fitness" instead
-def _recalculcate_fitness(
-    pop: Population,
-    demand_matrix: gdf,
-    budget: int,
-    max_edges: int,
-    penalty_weight: float,
-) -> Population:
-    """
-    Calculates the fitness function for every network in a population.
-    Fitness function is demand_coverage, but if a network is over the budget
-    of max number of edges, then the score is penalised. Solutions that cross
-    the budget more are also penalised harder.
-    """
-    max_overspend = max_edges - budget
-    new_pop = copy_pop(pop)
-    for nw in new_pop.values():
-        demand_covered = dmnd.network_demand_coverage(nw["graph"].nodes, demand_matrix)
-        cost = nw["graph"].number_of_edges()
-        if cost > budget:
-            overspend_pct = ((cost - budget) / max_overspend) * 100
-            nw["demand_covered"] = max(
-                0.0, demand_covered - (penalty_weight * overspend_pct)
-            )
-        else:
-            nw["demand_covered"] = demand_covered
-    return new_pop
+def _calculate_fitness(graph: Graph, demand_matrix) -> float:
+    return dmnd.network_demand_coverage(set(graph), demand_matrix)
 
 
 # OTHER HELPERS
 
 
 def _create_network(graph: Graph) -> Network:
-    return {"demand_covered": 0.0, "graph": graph}
+    return {"fitness": 0.0, "graph": graph}
 
 
 def _random_choice[T](items: Sequence[T], rng: np.random.Generator) -> T:
@@ -629,7 +603,7 @@ def copy_pop(original: Population) -> Population:
 
 def network_to_jsonable(nw: Network) -> dict:
     return {
-        "demand_covered": float(nw["demand_covered"]),
+        "demand_covered": float(nw["fitness"]),
         "graph": nx.node_link_data(nw["graph"], edges="edges"),
     }
 
@@ -643,7 +617,7 @@ def generations_to_jsonable(gens: Dict[int, Population]) -> dict:
 
 def jsonable_to_network(data: dict) -> Network:
     return {
-        "demand_covered": float(data["demand_covered"]),
+        "fitness": float(data["demand_covered"]),
         "graph": nx.node_link_graph(data["graph"], edges="edges"),
     }
 
@@ -662,7 +636,7 @@ def jsonable_to_gens(data: dict) -> Dict[int, Population]:
 def json_to_pop(data) -> Population:
     pop: Population = {
         int(nw_id): {
-            "demand_covered": nw["demand_covered"],
+            "fitness": nw["fitness"],
             "graph": nx.Graph(bicycle_network.graph.get_edge_list(nw["paths"])),
         }
         for nw_id, nw in data.items()
