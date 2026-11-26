@@ -633,7 +633,7 @@ def jsonable_to_gens(data: dict) -> Dict[int, Population]:
     return {int(pop_id): jsonable_to_pop(pop) for pop_id, pop in data.items()}
 
 
-def json_to_pop(data) -> Population:
+def convert_start_json_to_pop(data) -> Population:
     pop: Population = {
         int(nw_id): {
             "fitness": nw["fitness"],
