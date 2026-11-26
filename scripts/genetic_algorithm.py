@@ -59,11 +59,11 @@ start_pop = ga.convert_start_json_to_pop(data)
 # ## Run GA
 
 # %%
-iterations = 100
+iterations = 50
 tournament_size = 3
+elitism = False
 n_elites = 1
 mutation_probability = 0.4
-m = 50
 max_edges = int(seed_points["neighbours"].apply(len).sum() // 2)
 budget = max_edges // 5
 
@@ -72,6 +72,7 @@ generations = ga.run(
     iterations,
     budget,
     tournament_size,
+    elitism,
     n_elites,
     mutation_probability,
     seed_points,
@@ -82,10 +83,12 @@ generations = ga.run(
 
 print(f"Iterations: {iterations}")
 print(f"Population size: {len(start_pop)}")
-print(f"m: {m}")
-print(f"Max edges: {max_edges}")
 print(f"Budget: {budget}")
+print(f"Elitism: {elitism}")
+print(f"Number of elites: {n_elites}")
+print(f"Tournament size: {tournament_size}")
 print(f"Mutation probability: {mutation_probability}")
+print(f"Max edges: {max_edges}")
 
 # %% [markdown]
 # ## Save generations as JSON
