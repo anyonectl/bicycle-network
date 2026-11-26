@@ -306,12 +306,15 @@ def _mutate(
     A mutated version of the input network.
     """
     assert nx.is_connected(nw["graph"])
-    action = _random_choice(["add", "remove", "replace"], rng)
+    action = _random_choice(["add", "remove_node", "remove_edge", "replace"], rng)
     match action:
         case "add":
-            new_nw = _add_edge(nw, neighbours, rng)
+            new_nw = _add_node(nw, neighbours, rng)
             assert id(nw) != id(new_nw)
-        case "remove":
+        case "remove_node":
+            new_nw = _remove_node(nw, rng)
+            assert id(nw) != id(new_nw)
+        case "remove_edge":
             new_nw = _remove_edge(nw, rng)
             # assert id(nw) != id(new_nw) # fails
         case "replace":
@@ -323,11 +326,11 @@ def _mutate(
     return new_nw
 
 
-def _add_edge(
+def _add_node(
     nw: Network, neighbour_lookup: dict[str, set[str]], rng: np.random.Generator
 ) -> Network:
     """
-    Adds an edge to the network that connects an existing node
+    Adds a node + edge to the network that connects an existing node
     in the network with a neighbouring node not already in the network.
     The added edge is added as a new path, which may not be what we want.
     This method keeps connectivity in the graph and mutates a copy of
@@ -372,6 +375,20 @@ def _add_edge(
     mutated_nw["graph"].add_edge(chosen_node, new_node)
     assert id(nw) != id(mutated_nw)
     return mutated_nw
+
+
+def _remove_node(nw: Network, rng: np.random.Generator) -> Network:
+    """
+    Remove a node that is not a cut vertex and all its incident edge.
+    Network stays connected since the removed node is not a cut vertex.
+    """
+    graph = nw["graph"]
+    removable_nodes = sorted(set(graph) - set(nx.articulation_points(graph)))
+    if len(graph) < 3 or not removable_nodes:
+        return nw
+    mutated_graph = graph.copy()
+    mutated_graph.remove_node(_random_choice(removable_nodes, rng))
+    return _create_network(mutated_graph)
 
 
 def _remove_edge(nw: Network, rng: np.random.Generator) -> Network:
@@ -423,7 +440,7 @@ def _replace_edge(
 ) -> Network:
     """ """
     new_nw = _remove_edge(nw, rng)
-    return _add_edge(new_nw, neighbours, rng)
+    return _add_node(new_nw, neighbours, rng)
 
 
 # EVALUATION HELPERS
