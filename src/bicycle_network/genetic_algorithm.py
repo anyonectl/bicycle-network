@@ -293,11 +293,11 @@ def _mutate(
     nw: Network, neighbours: dict[str, set[str]], grid: gdf, rng: np.random.Generator
 ) -> Network:
     """
-    Mutate the given network either by adding, removing or
-    replacing an edge. Whether to add, remove or replace is
-    determined randomly.
-
-    The original input network is not altered.
+    Mutate the given network either by:
+    1) removing a node and all its incident edges,
+    2) adding one node and one edge,
+    3) both of the above, or
+    4) removing a single edge (and no nodes).
 
     Parameters:
     nw (Network): The network to mutate.
@@ -306,19 +306,21 @@ def _mutate(
     A mutated version of the input network.
     """
     assert nx.is_connected(nw["graph"])
-    action = _random_choice(["add", "remove", "replace", "remove_edge"], rng)
-    match action:
-        case "add":
-            nw = _add_node(nw, neighbours, rng)
-        case "remove":
-            nw = _remove_node(nw, rng)
-        case "replace":
-            nw = _replace_node(nw, neighbours, rng)
-        case "remove_edge":
-            nw = _remove_edge(nw, rng)
-        case _:
-            raise NotImplementedError
-    assert nx.is_connected(nw["graph"])
+    count = _random_choice([1, 2, 3], rng)
+    for i in range(count):
+        action = _random_choice(["add", "remove", "replace", "remove_edge"], rng)
+        match action:
+            case "add":
+                nw = _add_node(nw, neighbours, rng)
+            case "remove":
+                nw = _remove_node(nw, rng)
+            case "replace":
+                nw = _replace_node(nw, neighbours, rng)
+            case "remove_edge":
+                nw = _remove_edge(nw, rng)
+            case _:
+                raise NotImplementedError
+        assert nx.is_connected(nw["graph"])
     return nw
 
 
