@@ -46,6 +46,7 @@ demand_matrix = gpd.read_file(DEMAND_MATRIX_FILE)
 grid = gpd.read_file(GRID_FILE)
 seed_points = gpd.read_file(SEED_POINTS_FILE)
 
+
 # %% [markdown]
 # #### Initial population
 
@@ -71,9 +72,9 @@ generations = ga.run(
     budget,
     tournament_size,
     mutation_probability,
-    demand_matrix,
     seed_points,
     grid,
+    demand_matrix,
     SEED,
 )
 
