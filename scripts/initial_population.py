@@ -24,7 +24,7 @@
 
 # %%
 import json
-from bicycle_network import irsg
+from bicycle_network import irsg, plot
 import numpy as np
 import geopandas as gpd
 
@@ -45,7 +45,7 @@ SEED_POINTS_FILE = f"{DATA_PATH}seed_points.geojson"
 DEMAND_MATRIX_FILE = f"{DATA_PATH}demand_matrix.geojson"
 
 # %% [markdown]
-# ### Dataframes
+# ### Load data
 
 # %%
 grid = gpd.read_file(GRID_FILE)
@@ -63,68 +63,23 @@ k = int(len(seed_points) / 2)
 # ### Absolute demand
 
 # %%
-start_pop_abs = irsg.generate_population(
-    N_POP,
-    k,
-    MAX_PATHS,
-    MAX_NODES,
-    seed_points,
-    demand_matrix,
-    RNG,
-    demand_type="absolute",
+start_pop = irsg.generate_population(
+    N_POP, k, MAX_PATHS, MAX_NODES, seed_points, demand_matrix, RNG
 )
 
 # %%
-print(start_pop_abs)
+print(start_pop)
 
 # %%
-filename = "start_pop_abs_connected"
+filename = "start_population"
 with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
-    json.dump(start_pop_abs, json_file, indent=4)
+    json.dump(start_pop, json_file, indent=4)
 
 # %%
-# TODO Fix plotting after restructuring to dict
-# plot.plot_population(
-#     start_pop_abs,
-#     seed_points,
-#     grid,
-#     demand_type="absolute",
-#     save=False,
-#     output_path=PLOT_PATH,
-#     title="connected",
-# )
-
-# %% [markdown]
-# ### Demand share
-
-# %%
-start_pop_share = irsg.generate_population(
-    N_POP,
-    k,
-    MAX_PATHS,
-    MAX_NODES,
+plot.start_population(
+    start_pop,
     seed_points,
-    demand_matrix,
-    RNG,
-    demand_type="share",
+    grid,
+    save=True,
+    output_path=PLOT_PATH,
 )
-
-# %%
-print(start_pop_share)
-
-# %%
-filename = "start_pop_share_connected"
-with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
-    json.dump(start_pop_share, json_file, indent=4)
-
-# %%
-# TODO Fix plotting after restructuring to dict
-# plot.plot_population(
-#     start_pop_share,
-#     seed_points,
-#     grid,
-#     demand_type="share",
-#     save=False,
-#     output_path=PLOT_PATH,
-#     title="connected",
-# )
