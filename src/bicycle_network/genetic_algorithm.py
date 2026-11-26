@@ -157,13 +157,12 @@ def _crossover(
     parent_a: Network, parent_b: Network, rng: np.random.Generator
 ) -> Tuple[Network, Network] | None:
     """
-    TODO: Random partition selection instead of similarity?
-
     Performs "inter-string" crossover by exchanging graph partitions
     between two parent networks to create two child networks. The
     partition node at which to cut is chosen randomly from a
     feasible set of cut vertices shared between both parent
-    networks.
+    networks. Which partitions to exchange are also chosen
+    randomly.
 
     Parameters:
     parent_a (Network): First parent network.
@@ -180,11 +179,14 @@ def _crossover(
     cut_node = _random_choice(sorted(feasible_cuts), rng)
     components_a = _decompose_at(cut_node, graph_a)
     components_b = _decompose_at(cut_node, graph_b)
-    comp_a, comp_b = _choose_similar_components(components_a, components_b)
-    stripped_A = nx.compose_all([c for c in components_a if c is not comp_a])
-    stripped_B = nx.compose_all([c for c in components_b if c is not comp_b])
-    child_a = nx.compose(stripped_A, comp_b)
-    child_b = nx.compose(stripped_B, comp_a)
+    i = int(rng.integers(len(components_a)))
+    j = int(rng.integers(len(components_b)))
+    child_a = nx.compose_all(
+        components_a[:i] + components_a[i + 1 :] + [components_b[j]]
+    )
+    child_b = nx.compose_all(
+        components_b[:j] + components_b[j + 1 :] + [components_a[i]]
+    )
     return _create_network(child_a), _create_network(child_b)
 
 
