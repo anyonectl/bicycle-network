@@ -132,7 +132,6 @@ for pop_id in [0, N_ITE // 4, N_ITE // 2, (N_ITE * 3) // 4, N_ITE]:
         generations[pop_id],
         seed_points,
         grid,
-        demand_type="absolute",
         save=False,
         output_path=PLOT_PATH,
         filename="mutate_and_crossover",
