@@ -28,7 +28,7 @@ import geopandas as gpd
 ROOT = "../results/"
 PLOT_PATH = ROOT + "plots/"
 DATA_PATH = ROOT + "network-data/"
-GEN_FILE = f"{DATA_PATH}generations_2611271314.json"
+GEN_FILE = f"{DATA_PATH}generations.json"
 GRID_FILE = f"{DATA_PATH}grid.geojson"
 SEED_POINTS_FILE = f"{DATA_PATH}seed_points.geojson"
 
@@ -102,14 +102,15 @@ front_networks = plot.tradeoff(
 )
 
 # %%
-sorted_networks = sorted(
+sorted_fronts = sorted(
     front_networks,
     key=lambda nw: nw[1]["demand_coverage"],
     reverse=True,
 )
-top_20 = dict(enumerate(item[1] for item in sorted_networks[:20]))
+best_networks = dict(enumerate(item[1] for item in sorted_fronts))
 
 # %%
+top_20 = {i: best_networks[i] for i in range(20)}
 plot.population(
     top_20,
     seed_points,
@@ -119,3 +120,11 @@ plot.population(
     filename="top20",
     gen=-99,
 )
+
+# %% [markdown]
+# ## Save top 20 as JSON
+
+# %%
+filename = "top_networks"
+with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
+    json.dump(ga.generations_to_jsonable(best_networks), json_file, indent=4)
