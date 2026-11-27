@@ -573,7 +573,9 @@ def copy_pop(original: Population) -> Population:
 
 def network_to_jsonable(nw: Network) -> dict:
     return {
-        "demand_covered": float(nw["fitness"]),
+        "fitness": float(nw["fitness"]),
+        "demand_coverage": float(nw["demand_coverage"]),
+        "directness": float(nw["directness"]),
         "graph": nx.node_link_data(nw["graph"], edges="edges"),
     }
 
