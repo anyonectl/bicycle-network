@@ -295,6 +295,55 @@ def scatter(
     plt.close(fig)
 
 
+def tradeoff(
+    gens,
+    demand_weight,
+    directness_weight,
+    save=False,
+    output_path="../results/plots/",
+):
+    cmap = mplcm["viridis"]
+    pop_ids = sorted(gens)
+    norm = Normalize(vmin=pop_ids[0], vmax=pop_ids[-1])
+    fig, ax = plt.subplots(figsize=(8, 7))
+    for pop in pop_ids:
+        networks = list(gens[pop].values())
+        ax.scatter(
+            [nw["demand_coverage"] for nw in networks],
+            [nw["directness"] for nw in networks],
+            color=cmap(norm(pop)),
+            alpha=0.6,
+            edgecolor="white",
+            linewidth=0.5,
+            zorder=2,
+        )
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    fig.colorbar(sm, ax=ax, pad=0.02).set_label("Generation")
+
+    # ax.set_xlim(0, None)
+    # ax.set_ylim(0, None)
+    ax.set_xlabel("Demand coverage")
+    ax.set_ylabel("Directness")
+    ax.set_title("Tradeoff between objectives")
+    ax.grid(True, alpha=0.2)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.text(
+        0.98,
+        0.02,
+        f"Demand weight: {demand_weight}\nDirectness weight: {directness_weight}",
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=plt.rcParams["legend.fontsize"],
+    )
+    fig.tight_layout()
+    if save:
+        _save(fig, output_path, "tradeoff")
+    plt.show()
+    plt.close(fig)
+
+
 def progress(gens, budget=None, save=False, output_path="../results/plots/"):
     ids = sorted(gens)
     panels = [

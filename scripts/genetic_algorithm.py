@@ -139,6 +139,15 @@ plot.scatter(
     output_path=PLOT_PATH,
 )
 
+# %%
+plot.tradeoff(
+    generations,
+    demand_weight,
+    directness_weight,
+    save=True,
+    output_path=PLOT_PATH,
+)
+
 # %% [markdown]
 # ### Network plots
 
