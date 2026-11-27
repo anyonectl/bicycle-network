@@ -19,6 +19,12 @@ def current_time() -> str:
     return f"{year}{month}{date}{hour}{min}"
 
 
+def _save(fig, output_path, name):
+    fig.savefig(
+        f"{output_path}{name}_{current_time()}.png", dpi=300, bbox_inches="tight"
+    )
+
+
 def plot_population_gdf(
     population: gdf,
     seed_points: gdf,
@@ -285,5 +291,45 @@ def scatter(
             dpi=300,
             bbox_inches="tight",
         )
+    plt.show()
+    plt.close(fig)
+
+
+def progress(gens, budget=None, save=False, output_path="../results/plots/"):
+    ids = sorted(gens)
+    panels = [
+        ("fitness", lambda nw: nw["fitness"], "Fitness"),
+        ("demand_coverage", lambda nw: nw["demand_coverage"], "Demand coverage"),
+        ("directness", lambda nw: nw["directness"], "Directness"),
+        ("edges", lambda nw: nw["graph"].number_of_edges(), "Number of edges"),
+    ]
+
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8), sharex=True)
+    for ax, (_, getter, label) in zip(axes.ravel(), panels):
+        vals = [np.array([getter(nw) for nw in gens[g].values()]) for g in ids]
+        mn = np.array([v.min() for v in vals])
+        mx = np.array([v.max() for v in vals])
+        q1 = np.array([np.percentile(v, 25) for v in vals])
+        med = np.array([np.median(v) for v in vals])
+        q3 = np.array([np.percentile(v, 75) for v in vals])
+
+        ax.fill_between(ids, mn, mx, color="C0", alpha=0.12, label="Min-max")
+        ax.fill_between(ids, q1, q3, color="C0", alpha=0.3, label="IQR")
+        ax.plot(ids, med, color="C0", lw=1.5, label="Median")
+        ax.plot(ids, mx, color="C1", lw=1.2, label="Best")
+        if label == "Number of edges" and budget is not None:
+            ax.axhline(budget, color="red", ls="--", lw=0.8, label=f"Budget ({budget})")
+        ax.set_ylabel(label)
+        ax.grid(True, alpha=0.2)
+        ax.spines[["top", "right"]].set_visible(False)
+
+    axes[0, 0].legend(frameon=False, loc="lower right")
+    for ax in axes[1]:
+        ax.set_xlabel("Generation")
+    fig.suptitle("GA progress over generations")
+    fig.tight_layout()
+
+    if save:
+        _save(fig, output_path, "progress")
     plt.show()
     plt.close(fig)
