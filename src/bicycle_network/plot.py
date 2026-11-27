@@ -238,7 +238,7 @@ def scatter(
             ylabel = "Directness"
         case _:
             raise NotImplementedError
-    fig, ax = plt.subplots(figsize=(9, 7))
+    fig, ax = plt.subplots(figsize=(8, 7))
     for pop in pop_ids:
         networks = list(gens[pop].values())
         n_edges = [nw["graph"].number_of_edges() for nw in networks]
@@ -299,6 +299,7 @@ def tradeoff(
     gens,
     demand_weight,
     directness_weight,
+    budget,
     save=False,
     output_path="../results/plots/",
 ):
@@ -306,17 +307,38 @@ def tradeoff(
     pop_ids = sorted(gens)
     norm = Normalize(vmin=pop_ids[0], vmax=pop_ids[-1])
     fig, ax = plt.subplots(figsize=(8, 7))
-    for pop in pop_ids:
-        networks = list(gens[pop].values())
+    infeasible_x, infeasible_y = [], []
+    for i in pop_ids:
+        feasible, infeasible = [], []
+        for nw in gens[i].values():
+            if nw["graph"].number_of_edges() > budget:
+                infeasible.append(nw)
+            else:
+                feasible.append(nw)
+        infeasible_x += [nw["demand_coverage"] for nw in infeasible]
+        infeasible_y += [nw["directness"] for nw in infeasible]
         ax.scatter(
-            [nw["demand_coverage"] for nw in networks],
-            [nw["directness"] for nw in networks],
-            color=cmap(norm(pop)),
+            [nw["demand_coverage"] for nw in feasible],
+            [nw["directness"] for nw in feasible],
+            color=cmap(norm(i)),
             alpha=0.6,
             edgecolor="white",
             linewidth=0.5,
             zorder=2,
         )
+
+    ax.scatter(
+        infeasible_x,
+        infeasible_y,
+        color="lightgrey",
+        alpha=0.6,
+        edgecolor="white",
+        linewidth=0.5,
+        zorder=1,
+        label="Infeasible (over budget)",
+    )
+    ax.legend(frameon=False, loc="upper left")
+
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
     fig.colorbar(sm, ax=ax, pad=0.02).set_label("Generation")

@@ -144,6 +144,7 @@ plot.tradeoff(
     generations,
     demand_weight,
     directness_weight,
+    budget,
     save=True,
     output_path=PLOT_PATH,
 )
