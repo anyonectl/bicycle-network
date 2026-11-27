@@ -80,6 +80,8 @@ generations = ga.run(
     seed_points,
     grid,
     demand_matrix,
+    demand_weight,
+    directness_weight,
     SEED,
 )
 
@@ -109,23 +111,49 @@ with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
 # y-axis the percentage of demand met
 
 # %%
-plot.scatter(generations, budget, save=True, output_path=PLOT_PATH)
+plot.scatter(
+    generations,
+    demand_weight,
+    directness_weight,
+    "fitness",
+    budget,
+    save=True,
+    output_path=PLOT_PATH,
+)
+plot.scatter(
+    generations,
+    demand_weight,
+    directness_weight,
+    "demand_coverage",
+    budget,
+    save=True,
+    output_path=PLOT_PATH,
+)
+plot.scatter(
+    generations,
+    demand_weight,
+    directness_weight,
+    "directness",
+    budget,
+    save=True,
+    output_path=PLOT_PATH,
+)
 
 # %% [markdown]
 # ### Network plots
 
 # %%
-gens_to_plot = [0, iterations // 4, iterations // 2, (iterations * 3) // 4, iterations]
-for pop_id in gens_to_plot:
-    plot.population(
-        generations[pop_id],
-        seed_points,
-        grid,
-        save=False,
-        output_path=PLOT_PATH,
-        filename="mutate_and_crossover",
-        gen=pop_id,
-    )
+# gens_to_plot = [0, iterations // 4, iterations // 2, (iterations * 3) // 4, iterations]
+# for pop_id in gens_to_plot:
+#     plot.population(
+#         generations[pop_id],
+#         seed_points,
+#         grid,
+#         save=False,
+#         output_path=PLOT_PATH,
+#         filename="mutate_and_crossover",
+#         gen=pop_id,
+#     )
 
 # %% [markdown]
 # ### Violin plot

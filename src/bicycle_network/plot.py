@@ -212,7 +212,13 @@ def population(
 
 
 def scatter(
-    gens, measure="fitness", budget=None, save=False, output_path="../results/plots/"
+    gens,
+    demand_weight,
+    directness_weight,
+    measure="fitness",
+    budget=None,
+    save=False,
+    output_path="../results/plots/",
 ):
     cmap = mplcm["viridis"]
     pop_ids = sorted(gens)
@@ -246,7 +252,7 @@ def scatter(
             budget,
             color="red",
             linestyle="--",
-            linewidth=1,
+            linewidth=0.8,
             label=f"Budget ({budget} edges)",
         )
         ax.legend(frameon=False, loc="best")
@@ -262,6 +268,15 @@ def scatter(
     ax.set_title("Network performance by generation")
     ax.grid(True, alpha=0.2)
     ax.spines[["top", "right"]].set_visible(False)
+    ax.text(
+        0.98,
+        0.02,
+        f"Demand weight: {demand_weight}\nDirectness weight: {directness_weight}",
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=plt.rcParams["legend.fontsize"],
+    )
     fig.tight_layout()
 
     if save:
