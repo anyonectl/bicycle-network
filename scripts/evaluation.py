@@ -20,8 +20,7 @@
 
 # %%
 import json
-import bicycle_network.graph
-import bicycle_network.plot
+from bicycle_network import plot
 import bicycle_network.genetic_algorithm as ga
 import geopandas as gpd
 
@@ -29,7 +28,7 @@ import geopandas as gpd
 ROOT = "../results/"
 PLOT_PATH = ROOT + "plots/"
 DATA_PATH = ROOT + "network-data/"
-GEN_FILE = f"{DATA_PATH}generations_261124.json"
+GEN_FILE = f"{DATA_PATH}generations_2611271314.json"
 GRID_FILE = f"{DATA_PATH}grid.geojson"
 SEED_POINTS_FILE = f"{DATA_PATH}seed_points.geojson"
 
@@ -43,44 +42,17 @@ seed_points = gpd.read_file(SEED_POINTS_FILE)
 # %%
 with open(GEN_FILE, "r") as fp:
     data = json.load(fp)
-gens = ga.jsonable_to_gens(data)
+generations = ga.jsonable_to_gens(data)
 
 # %%
-print(type(gens))
-print((gens))
-print(gens[0])
+iterations = len(generations)
+demand_weight = 0.8
+directness_weight = 0.2
+max_edges = int(seed_points["neighbours"].apply(len).sum() // 2)
+budget = max_edges // 5
 
 # %% [markdown]
-# ## Get number of edges
-#
-# Can use the shapely objects to calc length - just need to map
-# the cell ids to their shapely points first
-#
-# Can maybe also save a metric demand per length
-#
-# When calculating length, we should not count the edges that are used by more than one path.
-
-# %% [markdown]
-# For a grid of 272 regular hexagons, we have:
-# - 210 interior cells with 6 neighbours
-# - 28 side cells with 4 neighbours
-# - 15 protruding top/bottom non-corner cells with 3 neighbours
-# - 15 non-protruding top/bottom non-corner cells with 5 neighbours
-# - 2 protruding corner cells (bottom) with 2 neighbours
-# - 2 non-protruding corner cells (top) with 3 neighbours
-#
-# Which gives a total cell count of 272, and a total number of edges
-# in the dual (?) graph of 751 edges.
-
-# %%
-# Calculate number of edges in each network
-n_edges_dict = {}
-for pop in gens.values():
-    for nw_id, nw in pop.items():
-        n_edges_dict[nw_id] = nw["graph"].number_of_edges()
-
-# %% [markdown]
-# ## Plot
+# ## Plots
 
 # %% [markdown]
 # ### Scatter plot
@@ -88,21 +60,59 @@ for pop in gens.values():
 # y-axis the percentage of demand met
 
 # %%
-bicycle_network.plot.scatter(gens, n_edges_dict, save=True, output_path=PLOT_PATH)
+plot.scatter(
+    generations,
+    demand_weight,
+    directness_weight,
+    "fitness",
+    budget,
+    save=True,
+    output_path=PLOT_PATH,
+)
+plot.scatter(
+    generations,
+    demand_weight,
+    directness_weight,
+    "demand_coverage",
+    budget,
+    save=True,
+    output_path=PLOT_PATH,
+)
+plot.scatter(
+    generations,
+    demand_weight,
+    directness_weight,
+    "directness",
+    budget,
+    save=True,
+    output_path=PLOT_PATH,
+)
 
 # %%
-for pop_id in [0, 10, 19]:
-    bicycle_network.plot.population(
-        gens[pop_id],
-        seed_points,
-        grid,
-        save=True,
-        output_path=PLOT_PATH,
-        filename="mutate_and_crossover",
-        gen=pop_id,
-    )
+plot.progress(generations, budget, save=False, output_path=PLOT_PATH)
+
+# %%
+plot.tradeoff(
+    generations,
+    demand_weight,
+    directness_weight,
+    budget,
+    save=True,
+    output_path=PLOT_PATH,
+)
 
 # %% [markdown]
-# ### Violin plot
-# One violin per generation to show demand coverage distribution for all networks in the generation.
-# Should include at least 5 gens, maybe all if there aren't that many
+# ### Network plots
+
+# %%
+# gens_to_plot = [0, iterations // 4, iterations // 2, (iterations * 3) // 4, iterations]
+# for pop_id in gens_to_plot:
+#     plot.population(
+#         generations[pop_id],
+#         seed_points,
+#         grid,
+#         save=False,
+#         output_path=PLOT_PATH,
+#         filename="mutate_and_crossover",
+#         gen=pop_id,
+#     )

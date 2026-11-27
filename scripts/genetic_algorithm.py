@@ -140,6 +140,9 @@ plot.scatter(
 )
 
 # %%
+plot.progress(generations, budget, save=False, output_path=PLOT_PATH)
+
+# %%
 plot.tradeoff(
     generations,
     demand_weight,
