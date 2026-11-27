@@ -13,7 +13,9 @@ type Population = Dict[int, Network]
 
 class Network(TypedDict):
     fitness: float
-    graph: Graph  # irs/ips
+    demand_coverage: float
+    directness: float
+    graph: Graph
 
 
 def run(
@@ -293,13 +295,19 @@ def _evaluation(
     Returns:
     a population of networks with recalculated fitness scores.
     """
-    return {
-        nw_id: {
-            "fitness": _calculate_fitness(nw["graph"], dists, demand_matrix),
+    updated_pop: Population = {}
+    for nw_id, nw in pop.items():
+        fitness, demand, directness = _calculate_fitness(
+            nw["graph"], dists, demand_matrix
+        )
+        new_nw: Network = {
+            "fitness": fitness,
+            "demand_coverage": demand,
+            "directness": directness,
             "graph": nw["graph"],
         }
-        for nw_id, nw in pop.items()
-    }
+        updated_pop[nw_id] = new_nw
+    return updated_pop
 
 
 def _mutate(
@@ -460,11 +468,18 @@ def _calculate_fitness(
     demand_matrix: gdf,
     demand_weight: float = 0.8,
     directness_weight: float = 0.2,
+) -> Tuple[float, float, float]:
+    demand_coverage = _calculate_demand(graph, demand_matrix)
+    directness = _calculate_directness(graph, euclidean_dists)
+    fitness = demand_weight * demand_coverage + directness_weight * directness
+    return (fitness, demand_coverage, directness)
+
+
+def _calculate_demand(
+    graph: Graph,
+    demand_matrix: gdf,
 ) -> float:
-    # TODO: Include directness
-    demand_coverage = dmnd.network_demand_coverage(set(graph), demand_matrix)
-    avg_directness = _calculate_directness(graph, euclidean_dists)
-    return demand_weight * demand_coverage + directness_weight * avg_directness
+    return dmnd.network_demand_coverage(set(graph), demand_matrix)
 
 
 def _calculate_directness(
@@ -499,7 +514,7 @@ def _calculate_directness(
 
 
 def _create_network(graph: Graph) -> Network:
-    return {"fitness": 0.0, "graph": graph}
+    return {"fitness": 0.0, "demand_coverage": 0.0, "directness": 0.0, "graph": graph}
 
 
 def _random_choice[T](items: Sequence[T], rng: np.random.Generator) -> T:
@@ -560,28 +575,32 @@ def generations_to_jsonable(gens: Dict[int, Population]) -> dict:
     }
 
 
-def jsonable_to_network(data: dict) -> Network:
+def _jsonable_to_network(data: dict) -> Network:
     return {
-        "fitness": float(data["demand_covered"]),
+        "fitness": float(data["fitness"]),
+        "demand_coverage": float(data["demand_coverage"]),
+        "directness": float(data["directness"]),
         "graph": nx.node_link_graph(data["graph"], edges="edges"),
     }
 
 
-def jsonable_to_pop(data: dict) -> Population:
+def _jsonable_to_pop(data: dict) -> Population:
     pop: Population = {
-        int(nw_id): jsonable_to_network(nw) for nw_id, nw in data.items()
+        int(nw_id): _jsonable_to_network(nw) for nw_id, nw in data.items()
     }
     return pop
 
 
 def jsonable_to_gens(data: dict) -> Dict[int, Population]:
-    return {int(pop_id): jsonable_to_pop(pop) for pop_id, pop in data.items()}
+    return {int(pop_id): _jsonable_to_pop(pop) for pop_id, pop in data.items()}
 
 
 def convert_start_json_to_pop(data) -> Population:
     pop: Population = {
         int(nw_id): {
             "fitness": nw["fitness"],
+            "demand_coverage": nw["fitness"],
+            "directness": 0.0,
             "graph": nx.Graph(bicycle_network.graph.get_edge_list(nw["paths"])),
         }
         for nw_id, nw in data.items()

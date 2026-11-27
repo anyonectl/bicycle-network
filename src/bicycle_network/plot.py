@@ -252,7 +252,7 @@ def scatter(gens, budget=None, save=False, output_path="../results/plots/"):
     # ax.set_xlim(xmin, xmax)
     # ax.set_ylim(ymin, ymax)
     ax.set_xlabel("Number of edges")
-    ax.set_ylabel("Demand coverage (%)")
+    ax.set_ylabel("Fitness")
     ax.set_title("Network performance by generation")
     ax.grid(True, alpha=0.2)
     ax.spines[["top", "right"]].set_visible(False)
