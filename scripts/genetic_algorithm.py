@@ -64,6 +64,8 @@ tournament_size = 3
 elitism = True
 n_elites = 2
 mutation_probability = 0.3
+demand_weight = 0.8
+directness_weight = 0.2
 max_edges = int(seed_points["neighbours"].apply(len).sum() // 2)
 budget = max_edges // 5
 

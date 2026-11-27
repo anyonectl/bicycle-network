@@ -29,13 +29,17 @@ def run(
     seed_points: gdf,
     grid: gdf,
     demand_matrix: gdf,
+    demand_weight: float = 0.8,
+    directness_weight: float = 0.2,
     seed: int = 3581054352,
 ) -> Dict[int, Population]:
     rng = np.random.default_rng(seed=seed)
     neighbours = _neighbour_lookup(seed_points)
     euclidean_distances = _distance_lookup(seed_points, demand_matrix)
     n = len(start_pop)
-    pop = _evaluation(start_pop, euclidean_distances, demand_matrix)
+    pop = _evaluation(
+        start_pop, euclidean_distances, demand_matrix, demand_weight, directness_weight
+    )
     gens: dict[int, Population] = {}
     gens[0] = pop
     i = 1
@@ -54,6 +58,8 @@ def run(
             mutated,
             euclidean_distances,
             demand_matrix,
+            demand_weight,
+            directness_weight,
         )
         assert id(evaluated) != id(mutated)
         pop = dict(enumerate(elites + list(evaluated.values())))
@@ -282,7 +288,11 @@ def _mutation(
 
 
 def _evaluation(
-    pop: Population, dists: dict[str, dict[str, float]], demand_matrix: gdf
+    pop: Population,
+    dists: dict[str, dict[str, float]],
+    demand_matrix: gdf,
+    demand_weight: float,
+    directness_weight: float,
 ) -> Population:
     """
     Calculate the fitness for each network in the population.
@@ -298,7 +308,7 @@ def _evaluation(
     updated_pop: Population = {}
     for nw_id, nw in pop.items():
         fitness, demand, directness = _calculate_fitness(
-            nw["graph"], dists, demand_matrix
+            nw["graph"], dists, demand_matrix, demand_weight, directness_weight
         )
         new_nw: Network = {
             "fitness": fitness,
@@ -466,8 +476,8 @@ def _calculate_fitness(
     graph: Graph,
     euclidean_dists: dict[str, dict[str, float]],
     demand_matrix: gdf,
-    demand_weight: float = 0.8,
-    directness_weight: float = 0.2,
+    demand_weight: float,
+    directness_weight: float,
 ) -> Tuple[float, float, float]:
     demand_coverage = _calculate_demand(graph, demand_matrix)
     directness = _calculate_directness(graph, euclidean_dists)
