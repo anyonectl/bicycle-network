@@ -211,19 +211,29 @@ def population(
     plt.close()
 
 
-def scatter(gens, budget=None, save=False, output_path="../results/plots/"):
+def scatter(
+    gens, measure="fitness", budget=None, save=False, output_path="../results/plots/"
+):
     cmap = mplcm["viridis"]
     pop_ids = sorted(gens)
     norm = Normalize(vmin=pop_ids[0], vmax=pop_ids[-1])
-
+    match measure:
+        case "fitness":
+            ylabel = "Fitness"
+        case "demand_coverage":
+            ylabel = "Demand coverage"
+        case "directness":
+            ylabel = "Directness"
+        case _:
+            raise NotImplementedError
     fig, ax = plt.subplots(figsize=(9, 7))
     for pop in pop_ids:
         networks = list(gens[pop].values())
         n_edges = [nw["graph"].number_of_edges() for nw in networks]
-        fitness = [nw["fitness"] for nw in networks]
+        y_axis = [nw[measure] for nw in networks]
         ax.scatter(
             x=n_edges,
-            y=fitness,
+            y=y_axis,
             color=cmap(norm(pop)),
             alpha=0.6,
             edgecolor="white",
@@ -245,14 +255,10 @@ def scatter(gens, budget=None, save=False, output_path="../results/plots/"):
     sm.set_array([])
     fig.colorbar(sm, ax=ax, pad=0.02).set_label("Generation")
 
-    # xmin = 125
-    # xmax = 140
-    # ymin = 10
-    # ymax = 30
-    # ax.set_xlim(xmin, xmax)
-    # ax.set_ylim(ymin, ymax)
+    ax.set_xlim(0, None)
+    ax.set_ylim(0, None)
     ax.set_xlabel("Number of edges")
-    ax.set_ylabel("Fitness")
+    ax.set_ylabel(ylabel)
     ax.set_title("Network performance by generation")
     ax.grid(True, alpha=0.2)
     ax.spines[["top", "right"]].set_visible(False)
@@ -260,7 +266,7 @@ def scatter(gens, budget=None, save=False, output_path="../results/plots/"):
 
     if save:
         fig.savefig(
-            f"{output_path}scatter_{current_time()}.png",
+            f"{output_path}scatter_{measure}_{current_time()}.png",
             dpi=300,
             bbox_inches="tight",
         )
