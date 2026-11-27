@@ -448,7 +448,7 @@ def tradeoff(
 
 
 def progress(gens, budget=None, save=False, output_path="../results/plots/"):
-    ids = sorted(gens)
+    pop_ids = sorted(gens)
     panels = [
         ("fitness", lambda nw: nw["fitness"], "Fitness"),
         ("demand_coverage", lambda nw: nw["demand_coverage"], "Demand coverage"),
@@ -456,29 +456,29 @@ def progress(gens, budget=None, save=False, output_path="../results/plots/"):
         ("edges", lambda nw: nw["graph"].number_of_edges(), "Number of edges"),
     ]
 
-    fig, axes = plt.subplots(2, 2, figsize=(11, 8), sharex=True)
+    fig, axes = plt.subplots(4, 1, figsize=(8, 12), sharex=True)
     for ax, (_, getter, label) in zip(axes.ravel(), panels):
-        vals = [np.array([getter(nw) for nw in gens[g].values()]) for g in ids]
-        mn = np.array([v.min() for v in vals])
-        mx = np.array([v.max() for v in vals])
+        vals = [np.array([getter(nw) for nw in gens[i].values()]) for i in pop_ids]
+        min = np.array([v.min() for v in vals])
+        max = np.array([v.max() for v in vals])
         q1 = np.array([np.percentile(v, 25) for v in vals])
         med = np.array([np.median(v) for v in vals])
         q3 = np.array([np.percentile(v, 75) for v in vals])
 
-        ax.fill_between(ids, mn, mx, color="C0", alpha=0.12, label="Min-max")
-        ax.fill_between(ids, q1, q3, color="C0", alpha=0.3, label="IQR")
-        ax.plot(ids, med, color="C0", lw=1.5, label="Median")
-        ax.plot(ids, mx, color="C1", lw=1.2, label="Best")
+        ax.fill_between(pop_ids, min, max, color="C0", alpha=0.12, label="Min-max")
+        ax.fill_between(pop_ids, q1, q3, color="C0", alpha=0.3, label="IQR")
+        ax.plot(pop_ids, med, color="C0", lw=1.5, label="Median")
+        ax.plot(pop_ids, max, color="C1", lw=1.2, label="Max")
         if label == "Number of edges" and budget is not None:
-            ax.axhline(budget, color="red", ls="--", lw=0.8, label=f"Budget ({budget})")
+            ax.axhline(budget, color="red", ls="--", lw=0.8, label="Budget")
         ax.set_ylabel(label)
         ax.grid(True, alpha=0.2)
         ax.spines[["top", "right"]].set_visible(False)
 
-    axes[0, 0].legend(frameon=False, loc="lower right")
+    axes[0].legend(frameon=False, loc="upper center", ncol=2)
     for ax in axes[1]:
         ax.set_xlabel("Generation")
-    fig.suptitle("GA progress over generations")
+    fig.suptitle("Distribution of values across GA generations")
     fig.tight_layout()
 
     if save:
