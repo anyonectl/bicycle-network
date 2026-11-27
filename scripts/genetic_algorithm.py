@@ -25,7 +25,6 @@ import json
 import numpy as np
 import geopandas as gpd
 import bicycle_network.genetic_algorithm as ga
-from bicycle_network import plot
 
 # %%
 SEED: int = 3581054352
@@ -64,10 +63,12 @@ tournament_size = 3
 elitism = True
 n_elites = 2
 mutation_probability = 0.3
+demand_weight = 0.8
+directness_weight = 0.2
 max_edges = int(seed_points["neighbours"].apply(len).sum() // 2)
 budget = max_edges // 5
 
-generations = ga.run(
+result = ga.run(
     start_pop,
     iterations,
     budget,
@@ -78,6 +79,8 @@ generations = ga.run(
     seed_points,
     grid,
     demand_matrix,
+    demand_weight,
+    directness_weight,
     SEED,
 )
 
@@ -94,38 +97,6 @@ print(f"Max edges: {max_edges}")
 # ## Save generations as JSON
 
 # %%
-filename = f"generations_{plot.current_time()}"
+filename = "ga_result"
 with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
-    json.dump(ga.generations_to_jsonable(generations), json_file, indent=4)
-
-# %% [markdown]
-# # Plots
-
-# %% [markdown]
-# ### Scatter plot
-# Scatter plot with x-axis the total length of a network,
-# y-axis the percentage of demand met
-
-# %%
-plot.scatter(generations, budget, save=True, output_path=PLOT_PATH)
-
-# %% [markdown]
-# ### Network plots
-
-# %%
-gens_to_plot = [0, iterations // 4, iterations // 2, (iterations * 3) // 4, iterations]
-for pop_id in gens_to_plot:
-    plot.population(
-        generations[pop_id],
-        seed_points,
-        grid,
-        save=False,
-        output_path=PLOT_PATH,
-        filename="mutate_and_crossover",
-        gen=pop_id,
-    )
-
-# %% [markdown]
-# ### Violin plot
-# One violin per generation to show demand coverage distribution for all networks in the generation.
-# Should include at least 5 gens, maybe all if there aren't that many
+    json.dump(ga.ga_run_to_jsonable(result), json_file, indent=4)

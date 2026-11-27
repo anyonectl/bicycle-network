@@ -20,8 +20,7 @@
 
 # %%
 import json
-import bicycle_network.graph
-import bicycle_network.plot
+from bicycle_network import plot
 import bicycle_network.genetic_algorithm as ga
 import geopandas as gpd
 
@@ -29,7 +28,7 @@ import geopandas as gpd
 ROOT = "../results/"
 PLOT_PATH = ROOT + "plots/"
 DATA_PATH = ROOT + "network-data/"
-GEN_FILE = f"{DATA_PATH}generations_261124.json"
+GEN_FILE = f"{DATA_PATH}ga_result.json"
 GRID_FILE = f"{DATA_PATH}grid.geojson"
 SEED_POINTS_FILE = f"{DATA_PATH}seed_points.geojson"
 
@@ -43,44 +42,30 @@ seed_points = gpd.read_file(SEED_POINTS_FILE)
 # %%
 with open(GEN_FILE, "r") as fp:
     data = json.load(fp)
-gens = ga.jsonable_to_gens(data)
+result = ga.jsonable_to_ga_run(data)
 
 # %%
-print(type(gens))
-print((gens))
-print(gens[0])
+iterations = result["iterations"]
+budget = result["budget"]
+elitism = result["elitism"]
+n_elites = result["n_elites"]
+tournament_size = result["tournament_size"]
+mutation_probability = result["mutation_probability"]
+demand_weight = result["demand_weight"]
+directness_weight = result["directness_weight"]
+
+print(f"Iterations: {iterations}")
+print(f"Population size: {len(result["generations"][0])}")
+print(f"Budget: {budget}")
+print(f"Elitism: {elitism}")
+print(f"Number of elites: {n_elites}")
+print(f"Tournament size: {tournament_size}")
+print(f"Mutation probability: {mutation_probability}")
+print(f"Demand weight: {demand_weight}")
+print(f"Directness weight: {demand_weight}")
 
 # %% [markdown]
-# ## Get number of edges
-#
-# Can use the shapely objects to calc length - just need to map
-# the cell ids to their shapely points first
-#
-# Can maybe also save a metric demand per length
-#
-# When calculating length, we should not count the edges that are used by more than one path.
-
-# %% [markdown]
-# For a grid of 272 regular hexagons, we have:
-# - 210 interior cells with 6 neighbours
-# - 28 side cells with 4 neighbours
-# - 15 protruding top/bottom non-corner cells with 3 neighbours
-# - 15 non-protruding top/bottom non-corner cells with 5 neighbours
-# - 2 protruding corner cells (bottom) with 2 neighbours
-# - 2 non-protruding corner cells (top) with 3 neighbours
-#
-# Which gives a total cell count of 272, and a total number of edges
-# in the dual (?) graph of 751 edges.
-
-# %%
-# Calculate number of edges in each network
-n_edges_dict = {}
-for pop in gens.values():
-    for nw_id, nw in pop.items():
-        n_edges_dict[nw_id] = nw["graph"].number_of_edges()
-
-# %% [markdown]
-# ## Plot
+# ## Plots
 
 # %% [markdown]
 # ### Scatter plot
@@ -88,21 +73,63 @@ for pop in gens.values():
 # y-axis the percentage of demand met
 
 # %%
-bicycle_network.plot.scatter(gens, n_edges_dict, save=True, output_path=PLOT_PATH)
+plot.scatter(
+    result,
+    "fitness",
+    budget,
+    save=False,
+    output_path=PLOT_PATH,
+)
+plot.scatter(
+    result,
+    "demand_coverage",
+    budget,
+    save=False,
+    output_path=PLOT_PATH,
+)
+plot.scatter(
+    result,
+    "directness",
+    budget,
+    save=False,
+    output_path=PLOT_PATH,
+)
 
 # %%
-for pop_id in [0, 10, 19]:
-    bicycle_network.plot.population(
-        gens[pop_id],
-        seed_points,
-        grid,
-        save=True,
-        output_path=PLOT_PATH,
-        filename="mutate_and_crossover",
-        gen=pop_id,
-    )
+plot.progress(result, budget, save=False, output_path=PLOT_PATH)
+
+# %%
+front_networks = plot.tradeoff(
+    result,
+    budget,
+    save=False,
+    output_path=PLOT_PATH,
+)
+
+# %%
+sorted_fronts = sorted(
+    front_networks,
+    key=lambda nw: nw[1]["demand_coverage"],
+    reverse=True,
+)
+best_networks = dict(enumerate(item[1] for item in sorted_fronts))
+
+# %%
+top_20 = {i: best_networks[i] for i in range(20)}
+plot.population(
+    top_20,
+    seed_points,
+    grid,
+    save=False,
+    output_path=PLOT_PATH,
+    filename="top20",
+    gen=-99,
+)
 
 # %% [markdown]
-# ### Violin plot
-# One violin per generation to show demand coverage distribution for all networks in the generation.
-# Should include at least 5 gens, maybe all if there aren't that many
+# ## Save top 20 as JSON
+
+# %%
+filename = "top_networks"
+with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
+    json.dump(ga.generations_to_jsonable(best_networks), json_file, indent=4)

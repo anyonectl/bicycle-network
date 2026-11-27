@@ -1,18 +1,33 @@
 from typing import Dict, List, Sequence, Set, Tuple, TypedDict
 import numpy as np
 from geopandas import GeoDataFrame as gdf
+from shapely import Point
 import bicycle_network.demand as dmnd
 import bicycle_network.graph
 import networkx as nx
 from networkx.classes.graph import Graph
 import copy
 
-type Population = Dict[int, Network]
+type Population = dict[int, Network]
 
 
 class Network(TypedDict):
     fitness: float
-    graph: Graph  # irs/ips
+    demand_coverage: float
+    directness: float
+    graph: Graph
+
+
+class Result(TypedDict):
+    iterations: int
+    budget: int
+    elitism: bool
+    n_elites: int
+    tournament_size: int
+    mutation_probability: float
+    demand_weight: float
+    directness_weight: float
+    generations: dict[int, Population]
 
 
 def run(
@@ -26,12 +41,17 @@ def run(
     seed_points: gdf,
     grid: gdf,
     demand_matrix: gdf,
+    demand_weight: float = 0.8,
+    directness_weight: float = 0.2,
     seed: int = 3581054352,
-) -> Dict[int, Population]:
+) -> Result:
     rng = np.random.default_rng(seed=seed)
     neighbours = _neighbour_lookup(seed_points)
+    euclidean_distances = _distance_lookup(seed_points, demand_matrix)
     n = len(start_pop)
-    pop = _evaluation(start_pop, demand_matrix)
+    pop = _evaluation(
+        start_pop, euclidean_distances, demand_matrix, demand_weight, directness_weight
+    )
     gens: dict[int, Population] = {}
     gens[0] = pop
     i = 1
@@ -48,14 +68,28 @@ def run(
         assert id(mutated) != id(children)
         evaluated = _evaluation(
             mutated,
+            euclidean_distances,
             demand_matrix,
+            demand_weight,
+            directness_weight,
         )
         assert id(evaluated) != id(mutated)
         pop = dict(enumerate(elites + list(evaluated.values())))
         gens[i] = pop
         assert id(pop) != id(start_pop)
         i = i + 1
-    return gens
+    run: Result = {
+        "iterations": iterations,
+        "budget": budget,
+        "elitism": elitism,
+        "n_elites": n_elites,
+        "tournament_size": tournament_size,
+        "mutation_probability": mutation_probability,
+        "demand_weight": demand_weight,
+        "directness_weight": directness_weight,
+        "generations": gens,
+    }
+    return run
 
 
 def _find_best_networks(pop: Population, n_elites: int, budget: int) -> List[Network]:
@@ -276,19 +310,37 @@ def _mutation(
     return mutated
 
 
-def _evaluation(pop: Population, demand_matrix: gdf) -> Population:
+def _evaluation(
+    pop: Population,
+    dists: dict[str, dict[str, float]],
+    demand_matrix: gdf,
+    demand_weight: float,
+    directness_weight: float,
+) -> Population:
     """
     Calculate the fitness for each network in the population.
 
-    Returns a population of networks with recalculated fitness scores.
+    Parameters:
+    pop:
+    dists: Mapping between seed point pairs and the euclidean distance between them
+
+
+    Returns:
+    a population of networks with recalculated fitness scores.
     """
-    return {
-        nw_id: {
-            "fitness": _calculate_fitness(nw["graph"], demand_matrix),
+    updated_pop: Population = {}
+    for nw_id, nw in pop.items():
+        fitness, demand, directness = _calculate_fitness(
+            nw["graph"], dists, demand_matrix, demand_weight, directness_weight
+        )
+        new_nw: Network = {
+            "fitness": fitness,
+            "demand_coverage": demand,
+            "directness": directness,
             "graph": nw["graph"],
         }
-        for nw_id, nw in pop.items()
-    }
+        updated_pop[nw_id] = new_nw
+    return updated_pop
 
 
 def _mutate(
@@ -443,15 +495,59 @@ def _replace_node(
 # EVALUATION HELPERS
 
 
-def _calculate_fitness(graph: Graph, demand_matrix) -> float:
+def _calculate_fitness(
+    graph: Graph,
+    euclidean_dists: dict[str, dict[str, float]],
+    demand_matrix: gdf,
+    demand_weight: float,
+    directness_weight: float,
+) -> Tuple[float, float, float]:
+    demand_coverage = _calculate_demand(graph, demand_matrix)
+    directness = _calculate_directness(graph, euclidean_dists)
+    fitness = demand_weight * demand_coverage + directness_weight * directness
+    return (fitness, demand_coverage, directness)
+
+
+def _calculate_demand(
+    graph: Graph,
+    demand_matrix: gdf,
+) -> float:
     return dmnd.network_demand_coverage(set(graph), demand_matrix)
+
+
+def _calculate_directness(
+    graph: Graph, euclidean_dists: dict[str, dict[str, float]]
+) -> float:
+    """
+    TODO: Directness between important seed point pairs should count more
+    than the directness between non-important seed point pairs.
+    Assumes unweighted, undirected, connected graph for shortest path distances.
+
+    Szell: "Directness measures the average ratios of euclidian distances
+         versus shortest path distances on the network"
+
+    Divide by edge_length at the end to convert units.
+    """
+    n_pairs = 0
+    total_ratio = 0.0
+    for source, sp_dists in nx.all_pairs_shortest_path_length(graph):
+        for target, sp_dist in sp_dists.items():
+            if source == target:
+                continue
+            total_ratio += euclidean_dists[source][target] / sp_dist
+            n_pairs += 1
+    if n_pairs == 0:
+        return 0.0
+    u, v = next(iter(graph.edges))
+    edge_length = euclidean_dists[u][v]
+    return total_ratio / n_pairs / edge_length
 
 
 # OTHER HELPERS
 
 
 def _create_network(graph: Graph) -> Network:
-    return {"fitness": 0.0, "graph": graph}
+    return {"fitness": 0.0, "demand_coverage": 0.0, "directness": 0.0, "graph": graph}
 
 
 def _random_choice[T](items: Sequence[T], rng: np.random.Generator) -> T:
@@ -462,7 +558,7 @@ def _random_choice[T](items: Sequence[T], rng: np.random.Generator) -> T:
     return items[i]
 
 
-def _neighbour_lookup(seed_points: gdf) -> Dict[str, Set[str]]:
+def _neighbour_lookup(seed_points: gdf) -> dict[str, Set[str]]:
     """
     Returns a dict that maps every seed point ID to a set containing
     their neighbour seed IDs.
@@ -471,6 +567,18 @@ def _neighbour_lookup(seed_points: gdf) -> Dict[str, Set[str]]:
         str(cell_id): {str(neighbour_id) for neighbour_id in neighbours.values()}
         for cell_id, neighbours in zip(seed_points["id"], seed_points["neighbours"])
     }
+
+
+def _distance_lookup(
+    seed_points: gdf, demand_matrix: gdf
+) -> dict[str, dict[str, float]]:
+    id_to_centroid: dict[str, Point] = seed_points.copy().set_index("id")["geometry"].to_dict()  # type: ignore
+    distances = {point_id: {} for point_id in id_to_centroid}
+    for u, v in zip(demand_matrix["u"], demand_matrix["v"]):
+        dist = id_to_centroid[u].distance(id_to_centroid[v])
+        distances[u][v] = dist
+        distances[v][u] = dist
+    return distances
 
 
 def copy_network(original: Network) -> Network:
@@ -488,7 +596,9 @@ def copy_pop(original: Population) -> Population:
 
 def network_to_jsonable(nw: Network) -> dict:
     return {
-        "demand_covered": float(nw["fitness"]),
+        "fitness": float(nw["fitness"]),
+        "demand_coverage": float(nw["demand_coverage"]),
+        "directness": float(nw["directness"]),
         "graph": nx.node_link_data(nw["graph"], edges="edges"),
     }
 
@@ -500,28 +610,60 @@ def generations_to_jsonable(gens: Dict[int, Population]) -> dict:
     }
 
 
-def jsonable_to_network(data: dict) -> Network:
+def ga_run_to_jsonable(result: Result) -> dict:
     return {
-        "fitness": float(data["demand_covered"]),
+        "iterations": int(result["iterations"]),
+        "budget": int(result["budget"]),
+        "elitism": bool(result["elitism"]),
+        "n_elites": int(result["n_elites"]),
+        "tournament_size": int(result["tournament_size"]),
+        "mutation_probability": float(result["mutation_probability"]),
+        "demand_weight": float(result["demand_weight"]),
+        "directness_weight": float(result["directness_weight"]),
+        "generations": generations_to_jsonable(result["generations"]),
+    }
+
+
+def _jsonable_to_network(data: dict) -> Network:
+    return {
+        "fitness": float(data["fitness"]),
+        "demand_coverage": float(data["demand_coverage"]),
+        "directness": float(data["directness"]),
         "graph": nx.node_link_graph(data["graph"], edges="edges"),
     }
 
 
-def jsonable_to_pop(data: dict) -> Population:
+def _jsonable_to_pop(data: dict) -> Population:
     pop: Population = {
-        int(nw_id): jsonable_to_network(nw) for nw_id, nw in data.items()
+        int(nw_id): _jsonable_to_network(nw) for nw_id, nw in data.items()
     }
     return pop
 
 
 def jsonable_to_gens(data: dict) -> Dict[int, Population]:
-    return {int(pop_id): jsonable_to_pop(pop) for pop_id, pop in data.items()}
+    return {int(pop_id): _jsonable_to_pop(pop) for pop_id, pop in data.items()}
+
+
+def jsonable_to_ga_run(data: dict) -> Result:
+    return {
+        "iterations": int(data["iterations"]),
+        "budget": int(data["budget"]),
+        "elitism": bool(data["elitism"]),
+        "n_elites": int(data["n_elites"]),
+        "tournament_size": int(data["tournament_size"]),
+        "mutation_probability": float(data["mutation_probability"]),
+        "demand_weight": float(data["demand_weight"]),
+        "directness_weight": float(data["directness_weight"]),
+        "generations": jsonable_to_gens(data["generations"]),
+    }
 
 
 def convert_start_json_to_pop(data) -> Population:
     pop: Population = {
         int(nw_id): {
             "fitness": nw["fitness"],
+            "demand_coverage": nw["fitness"],
+            "directness": 0.0,
             "graph": nx.Graph(bicycle_network.graph.get_edge_list(nw["paths"])),
         }
         for nw_id, nw in data.items()

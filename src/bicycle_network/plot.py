@@ -19,6 +19,12 @@ def current_time() -> str:
     return f"{year}{month}{date}{hour}{min}"
 
 
+def _save(fig, output_path, name):
+    fig.savefig(
+        f"{output_path}{name}_{current_time()}.png", dpi=300, bbox_inches="tight"
+    )
+
+
 def plot_population_gdf(
     population: gdf,
     seed_points: gdf,
@@ -105,7 +111,7 @@ def start_population(
         ax.set_ylim(ymin, ymax)
         ax.set_aspect("equal", adjustable="box")
         # ax.legend()
-        ax.set_title(f"Network {nw_id}, fitness: {fitness:.2f} %")
+        ax.set_title(f"Network {nw_id}, fitness: {fitness:.4f} %")
         ax.set_axis_off()
 
     for ax in axes[n_pop:]:
@@ -162,7 +168,7 @@ def network(
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     _draw_network(ax, nw["graph"], seed_points, grid)
     ax.set_title(
-        f"Network: {nw['fitness']:.1f} % demand, "
+        f"Network: {nw['fitness']:.4f} fitness, "
         f"{nw['graph'].number_of_edges()} edges"
     )
     plt.tight_layout()
@@ -193,7 +199,7 @@ def population(
     for ax, (nw_id, nw) in zip(axes, pop.items()):
         _draw_network(ax, nw["graph"], seed_points, grid)
         ax.set_title(
-            f"Network {nw_id}: {nw['fitness']:.1f} % demand, "
+            f"Network {nw_id}: {nw['fitness']:.4f} fitness, "
             f"{nw['graph'].number_of_edges()} edges"
         )
     for ax in axes[n_pop:]:
@@ -211,19 +217,34 @@ def population(
     plt.close()
 
 
-def scatter(gens, budget=None, save=False, output_path="../results/plots/"):
+def scatter(
+    result,
+    measure="fitness",
+    budget=None,
+    save=False,
+    output_path="../results/plots/",
+):
+    gens = result["generations"]
     cmap = mplcm["viridis"]
     pop_ids = sorted(gens)
     norm = Normalize(vmin=pop_ids[0], vmax=pop_ids[-1])
-
-    fig, ax = plt.subplots(figsize=(9, 7))
+    match measure:
+        case "fitness":
+            ylabel = "Fitness"
+        case "demand_coverage":
+            ylabel = "Demand coverage"
+        case "directness":
+            ylabel = "Directness"
+        case _:
+            raise NotImplementedError
+    fig, ax = plt.subplots(figsize=(8, 7))
     for pop in pop_ids:
         networks = list(gens[pop].values())
         n_edges = [nw["graph"].number_of_edges() for nw in networks]
-        fitness = [nw["fitness"] for nw in networks]
+        y_axis = [nw[measure] for nw in networks]
         ax.scatter(
             x=n_edges,
-            y=fitness,
+            y=y_axis,
             color=cmap(norm(pop)),
             alpha=0.6,
             edgecolor="white",
@@ -236,7 +257,7 @@ def scatter(gens, budget=None, save=False, output_path="../results/plots/"):
             budget,
             color="red",
             linestyle="--",
-            linewidth=1,
+            linewidth=0.8,
             label=f"Budget ({budget} edges)",
         )
         ax.legend(frameon=False, loc="best")
@@ -245,24 +266,224 @@ def scatter(gens, budget=None, save=False, output_path="../results/plots/"):
     sm.set_array([])
     fig.colorbar(sm, ax=ax, pad=0.02).set_label("Generation")
 
-    # xmin = 125
-    # xmax = 140
-    # ymin = 10
-    # ymax = 30
-    # ax.set_xlim(xmin, xmax)
-    # ax.set_ylim(ymin, ymax)
+    ax.set_xlim(0, None)
+    ax.set_ylim(0, None)
     ax.set_xlabel("Number of edges")
-    ax.set_ylabel("Demand coverage (%)")
+    ax.set_ylabel(ylabel)
     ax.set_title("Network performance by generation")
     ax.grid(True, alpha=0.2)
     ax.spines[["top", "right"]].set_visible(False)
+    ax.text(
+        0.98,
+        0.02,
+        f"Demand weight: {result["demand_weight"]}\nDirectness weight: {result["directness_weight"]}",
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=plt.rcParams["legend.fontsize"],
+    )
     fig.tight_layout()
 
     if save:
         fig.savefig(
-            f"{output_path}scatter_{current_time()}.png",
+            f"{output_path}scatter_{measure}_{current_time()}.png",
             dpi=300,
             bbox_inches="tight",
         )
+    plt.show()
+    plt.close(fig)
+
+
+def tradeoff(
+    result,
+    budget,
+    save=False,
+    output_path="../results/plots/",
+):
+    gens = result["generations"]
+
+    def _edge_key(nw):
+        """
+        Hashable identity of a network, its set of edges.
+        """
+        return frozenset(frozenset(e) for e in nw["graph"].edges)
+
+    def _pareto_front(x, y):
+        """
+        A point is on the front only when its y beats every y seen so far.
+        """
+        x, y = np.asarray(x), np.asarray(y)
+        order = np.lexsort((-y, -x))
+        front, best_y = [], -np.inf
+        for i in order:
+            if y[i] > best_y:
+                front.append(i)
+                best_y = y[i]
+        return front
+
+    pop_ids = sorted(gens)
+
+    # Build feasible/infeasible
+    seen = set()
+    feasible = []  # (generation, network)
+    infeasible_x, infeasible_y = [], []
+    for g in pop_ids:
+        for nw in gens[g].values():
+            key = _edge_key(nw)
+            if key in seen:
+                continue
+            seen.add(key)
+            if nw["graph"].number_of_edges() > budget:
+                infeasible_x.append(nw["demand_coverage"])
+                infeasible_y.append(nw["directness"])
+            else:
+                feasible.append((g, nw))
+
+    fig, ax = plt.subplots(figsize=(8, 7))
+    cmap = mplcm["viridis"]
+    norm = Normalize(vmin=pop_ids[0], vmax=pop_ids[-1])
+
+    # All networks
+    ax.scatter(
+        infeasible_x,
+        infeasible_y,
+        color="lightgrey",
+        alpha=0.6,
+        edgecolor="white",
+        linewidth=0.5,
+        zorder=1,
+    )
+    x = [nw["demand_coverage"] for _, nw in feasible]
+    y = [nw["directness"] for _, nw in feasible]
+    first_gen = [g for g, _ in feasible]
+    ax.scatter(
+        x,
+        y,
+        c=first_gen,
+        cmap=cmap,
+        norm=norm,
+        alpha=0.6,
+        edgecolor="white",
+        linewidth=0.5,
+        zorder=2,
+    )
+
+    # Pareto front
+    front = _pareto_front(x, y)
+    front.sort(key=lambda i: x[i])  # TODO: Fix sorting
+    fx = [x[i] for i in front]
+    fy = [y[i] for i in front]
+    ax.step(
+        fx,
+        fy,
+        where="post",
+        color="black",
+        linestyle="--",
+        linewidth=0.8,
+        zorder=3,
+        label="Pareto front",
+    )
+    ax.scatter(
+        fx,
+        fy,
+        c=[first_gen[i] for i in front],
+        cmap=cmap,
+        norm=norm,
+        alpha=0.9,
+        edgecolor="black",
+        linewidth=1.0,
+        zorder=4,
+    )
+
+    # Iso-fitness line through the best feasible network
+    demand_weight = result["demand_weight"]
+    directness_weight = result["directness_weight"]
+    score = demand_weight * np.array(x) + directness_weight * np.array(y)
+    b = int(np.argmax(score))
+    slope = -demand_weight / directness_weight if directness_weight else np.inf
+    ax.axline(
+        (x[b], y[b]),
+        slope=slope,
+        color="C3",
+        lw=0.8,
+        ls=":",
+        zorder=3,
+        label=f"Equal fitness ({score[b]:.3f})",
+    )
+    ax.scatter(
+        x[b],
+        y[b],
+        color="C3",
+        edgecolor="black",
+        linewidth=1.0,
+        zorder=5,
+    )
+
+    ax.legend(frameon=False, loc="best")
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    fig.colorbar(sm, ax=ax, pad=0.02).set_label("Generation (first seen)")
+
+    ax.set_xlabel("Demand coverage")
+    ax.set_ylabel("Directness")
+    ax.set_title("Tradeoff between objectives")
+    ax.grid(True, alpha=0.2)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.text(
+        0.98,
+        0.02,
+        f"Demand weight: {demand_weight}\nDirectness weight: {directness_weight}",
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=plt.rcParams["legend.fontsize"],
+    )
+    fig.tight_layout()
+    if save:
+        _save(fig, output_path, "tradeoff")
+    plt.show()
+    plt.close(fig)
+
+    # Return front networks
+    return [feasible[i] for i in front]
+
+
+def progress(result, budget=None, save=False, output_path="../results/plots/"):
+    gens = result["generations"]
+    pop_ids = sorted(gens)
+    panels = [
+        ("fitness", lambda nw: nw["fitness"], "Fitness"),
+        ("demand_coverage", lambda nw: nw["demand_coverage"], "Demand coverage"),
+        ("directness", lambda nw: nw["directness"], "Directness"),
+        ("edges", lambda nw: nw["graph"].number_of_edges(), "Number of edges"),
+    ]
+
+    fig, axes = plt.subplots(4, 1, figsize=(8, 12), sharex=True)
+    for ax, (_, getter, label) in zip(axes.ravel(), panels):
+        vals = [np.array([getter(nw) for nw in gens[i].values()]) for i in pop_ids]
+        min = np.array([v.min() for v in vals])
+        max = np.array([v.max() for v in vals])
+        q1 = np.array([np.percentile(v, 25) for v in vals])
+        med = np.array([np.median(v) for v in vals])
+        q3 = np.array([np.percentile(v, 75) for v in vals])
+
+        ax.fill_between(pop_ids, min, max, color="C0", alpha=0.12, label="Min-max")
+        ax.fill_between(pop_ids, q1, q3, color="C0", alpha=0.3, label="IQR")
+        ax.plot(pop_ids, med, color="C0", lw=1.5, label="Median")
+        ax.plot(pop_ids, max, color="C1", lw=1.2, label="Max")
+        if label == "Number of edges" and budget is not None:
+            ax.axhline(budget, color="red", ls="--", lw=0.8, label="Budget")
+        ax.set_ylabel(label)
+        ax.grid(True, alpha=0.2)
+        ax.spines[["top", "right"]].set_visible(False)
+
+    axes[0].legend(frameon=False, loc="upper center", ncol=2)
+    for ax in axes[1]:
+        ax.set_xlabel("Generation")
+    fig.suptitle("Distribution of values across GA generations")
+    fig.tight_layout()
+
+    if save:
+        _save(fig, output_path, "progress")
     plt.show()
     plt.close(fig)
