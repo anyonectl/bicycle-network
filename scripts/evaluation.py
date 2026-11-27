@@ -66,7 +66,7 @@ plot.scatter(
     directness_weight,
     "fitness",
     budget,
-    save=True,
+    save=False,
     output_path=PLOT_PATH,
 )
 plot.scatter(
@@ -75,7 +75,7 @@ plot.scatter(
     directness_weight,
     "demand_coverage",
     budget,
-    save=True,
+    save=False,
     output_path=PLOT_PATH,
 )
 plot.scatter(
@@ -84,7 +84,7 @@ plot.scatter(
     directness_weight,
     "directness",
     budget,
-    save=True,
+    save=False,
     output_path=PLOT_PATH,
 )
 
@@ -92,27 +92,30 @@ plot.scatter(
 plot.progress(generations, budget, save=False, output_path=PLOT_PATH)
 
 # %%
-plot.tradeoff(
+front_networks = plot.tradeoff(
     generations,
     demand_weight,
     directness_weight,
     budget,
-    save=True,
+    save=False,
     output_path=PLOT_PATH,
 )
 
-# %% [markdown]
-# ### Network plots
+# %%
+sorted_networks = sorted(
+    front_networks,
+    key=lambda nw: nw[1]["demand_coverage"],
+    reverse=True,
+)
+top_20 = dict(enumerate(item[1] for item in sorted_networks[:20]))
 
 # %%
-# gens_to_plot = [0, iterations // 4, iterations // 2, (iterations * 3) // 4, iterations]
-# for pop_id in gens_to_plot:
-#     plot.population(
-#         generations[pop_id],
-#         seed_points,
-#         grid,
-#         save=False,
-#         output_path=PLOT_PATH,
-#         filename="mutate_and_crossover",
-#         gen=pop_id,
-#     )
+plot.population(
+    top_20,
+    seed_points,
+    grid,
+    save=False,
+    output_path=PLOT_PATH,
+    filename="top20",
+    gen=-99,
+)

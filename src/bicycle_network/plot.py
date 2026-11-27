@@ -303,30 +303,48 @@ def tradeoff(
     save=False,
     output_path="../results/plots/",
 ):
-    cmap = mplcm["viridis"]
-    pop_ids = sorted(gens)
-    norm = Normalize(vmin=pop_ids[0], vmax=pop_ids[-1])
-    fig, ax = plt.subplots(figsize=(8, 7))
-    infeasible_x, infeasible_y = [], []
-    for i in pop_ids:
-        feasible, infeasible = [], []
-        for nw in gens[i].values():
-            if nw["graph"].number_of_edges() > budget:
-                infeasible.append(nw)
-            else:
-                feasible.append(nw)
-        infeasible_x += [nw["demand_coverage"] for nw in infeasible]
-        infeasible_y += [nw["directness"] for nw in infeasible]
-        ax.scatter(
-            [nw["demand_coverage"] for nw in feasible],
-            [nw["directness"] for nw in feasible],
-            color=cmap(norm(i)),
-            alpha=0.6,
-            edgecolor="white",
-            linewidth=0.5,
-            zorder=2,
-        )
+    def _edge_key(nw):
+        """
+        Hashable identity of a network, its set of edges.
+        """
+        return frozenset(frozenset(e) for e in nw["graph"].edges)
 
+    def _pareto_front(x, y):
+        """
+        A point is on the front only when its y beats every y seen so far.
+        """
+        x, y = np.asarray(x), np.asarray(y)
+        order = np.lexsort((-y, -x))
+        front, best_y = [], -np.inf
+        for i in order:
+            if y[i] > best_y:
+                front.append(i)
+                best_y = y[i]
+        return front
+
+    pop_ids = sorted(gens)
+
+    # Build feasible/infeasible
+    seen = set()
+    feasible = []  # (generation, network)
+    infeasible_x, infeasible_y = [], []
+    for g in pop_ids:
+        for nw in gens[g].values():
+            key = _edge_key(nw)
+            if key in seen:
+                continue
+            seen.add(key)
+            if nw["graph"].number_of_edges() > budget:
+                infeasible_x.append(nw["demand_coverage"])
+                infeasible_y.append(nw["directness"])
+            else:
+                feasible.append((g, nw))
+
+    fig, ax = plt.subplots(figsize=(8, 7))
+    cmap = mplcm["viridis"]
+    norm = Normalize(vmin=pop_ids[0], vmax=pop_ids[-1])
+
+    # All networks
     ax.scatter(
         infeasible_x,
         infeasible_y,
@@ -335,16 +353,76 @@ def tradeoff(
         edgecolor="white",
         linewidth=0.5,
         zorder=1,
-        label="Infeasible (over budget)",
     )
-    ax.legend(frameon=False, loc="upper left")
+    x = [nw["demand_coverage"] for _, nw in feasible]
+    y = [nw["directness"] for _, nw in feasible]
+    first_gen = [g for g, _ in feasible]
+    ax.scatter(
+        x,
+        y,
+        c=first_gen,
+        cmap=cmap,
+        norm=norm,
+        alpha=0.6,
+        edgecolor="white",
+        linewidth=0.5,
+        zorder=2,
+    )
 
+    # Pareto front
+    front = _pareto_front(x, y)
+    front.sort(key=lambda i: x[i])  # TODO: Fix sorting
+    fx = [x[i] for i in front]
+    fy = [y[i] for i in front]
+    ax.step(
+        fx,
+        fy,
+        where="post",
+        color="black",
+        linestyle="--",
+        linewidth=0.8,
+        zorder=3,
+        label="Pareto front",
+    )
+    ax.scatter(
+        fx,
+        fy,
+        c=[first_gen[i] for i in front],
+        cmap=cmap,
+        norm=norm,
+        alpha=0.9,
+        edgecolor="black",
+        linewidth=1.0,
+        zorder=4,
+    )
+
+    # Iso-fitness line through the best feasible network
+    score = demand_weight * np.array(x) + directness_weight * np.array(y)
+    b = int(np.argmax(score))
+    slope = -demand_weight / directness_weight if directness_weight else np.inf
+    ax.axline(
+        (x[b], y[b]),
+        slope=slope,
+        color="C3",
+        lw=0.8,
+        ls=":",
+        zorder=3,
+        label=f"Equal fitness ({score[b]:.3f})",
+    )
+    ax.scatter(
+        x[b],
+        y[b],
+        color="C3",
+        edgecolor="black",
+        linewidth=1.0,
+        zorder=5,
+    )
+
+    ax.legend(frameon=False, loc="best")
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
-    fig.colorbar(sm, ax=ax, pad=0.02).set_label("Generation")
+    fig.colorbar(sm, ax=ax, pad=0.02).set_label("Generation (first seen)")
 
-    # ax.set_xlim(0, None)
-    # ax.set_ylim(0, None)
     ax.set_xlabel("Demand coverage")
     ax.set_ylabel("Directness")
     ax.set_title("Tradeoff between objectives")
@@ -364,6 +442,9 @@ def tradeoff(
         _save(fig, output_path, "tradeoff")
     plt.show()
     plt.close(fig)
+
+    # Return front networks
+    return [feasible[i] for i in front]
 
 
 def progress(gens, budget=None, save=False, output_path="../results/plots/"):
