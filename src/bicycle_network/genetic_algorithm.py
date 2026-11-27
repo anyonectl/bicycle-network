@@ -8,7 +8,7 @@ import networkx as nx
 from networkx.classes.graph import Graph
 import copy
 
-type Population = Dict[int, Network]
+type Population = dict[int, Network]
 
 
 class Network(TypedDict):
@@ -16,6 +16,18 @@ class Network(TypedDict):
     demand_coverage: float
     directness: float
     graph: Graph
+
+
+class Result(TypedDict):
+    iterations: int
+    budget: int
+    elitism: bool
+    n_elites: int
+    tournament_size: int
+    mutation_probability: float
+    demand_weight: float
+    directness_weight: float
+    generations: dict[int, Population]
 
 
 def run(
@@ -32,7 +44,7 @@ def run(
     demand_weight: float = 0.8,
     directness_weight: float = 0.2,
     seed: int = 3581054352,
-) -> Dict[int, Population]:
+) -> Result:
     rng = np.random.default_rng(seed=seed)
     neighbours = _neighbour_lookup(seed_points)
     euclidean_distances = _distance_lookup(seed_points, demand_matrix)
@@ -66,7 +78,18 @@ def run(
         gens[i] = pop
         assert id(pop) != id(start_pop)
         i = i + 1
-    return gens
+    run: Result = {
+        "iterations": iterations,
+        "budget": budget,
+        "elitism": elitism,
+        "n_elites": n_elites,
+        "tournament_size": tournament_size,
+        "mutation_probability": mutation_probability,
+        "demand_weight": demand_weight,
+        "directness_weight": directness_weight,
+        "generations": gens,
+    }
+    return run
 
 
 def _find_best_networks(pop: Population, n_elites: int, budget: int) -> List[Network]:
@@ -587,6 +610,20 @@ def generations_to_jsonable(gens: Dict[int, Population]) -> dict:
     }
 
 
+def ga_run_to_jsonable(result: Result) -> dict:
+    return {
+        "iterations": int(result["iterations"]),
+        "budget": int(result["budget"]),
+        "elitism": bool(result["elitism"]),
+        "n_elites": int(result["n_elites"]),
+        "tournament_size": int(result["tournament_size"]),
+        "mutation_probability": float(result["mutation_probability"]),
+        "demand_weight": float(result["demand_weight"]),
+        "directness_weight": float(result["directness_weight"]),
+        "generations": generations_to_jsonable(result["generations"]),
+    }
+
+
 def _jsonable_to_network(data: dict) -> Network:
     return {
         "fitness": float(data["fitness"]),
@@ -605,6 +642,20 @@ def _jsonable_to_pop(data: dict) -> Population:
 
 def jsonable_to_gens(data: dict) -> Dict[int, Population]:
     return {int(pop_id): _jsonable_to_pop(pop) for pop_id, pop in data.items()}
+
+
+def jsonable_to_ga_run(data: dict) -> Result:
+    return {
+        "iterations": int(data["iterations"]),
+        "budget": int(data["budget"]),
+        "elitism": bool(data["elitism"]),
+        "n_elites": int(data["n_elites"]),
+        "tournament_size": int(data["tournament_size"]),
+        "mutation_probability": float(data["mutation_probability"]),
+        "demand_weight": float(data["demand_weight"]),
+        "directness_weight": float(data["directness_weight"]),
+        "generations": jsonable_to_gens(data["generations"]),
+    }
 
 
 def convert_start_json_to_pop(data) -> Population:

@@ -28,7 +28,7 @@ import geopandas as gpd
 ROOT = "../results/"
 PLOT_PATH = ROOT + "plots/"
 DATA_PATH = ROOT + "network-data/"
-GEN_FILE = f"{DATA_PATH}generations.json"
+GEN_FILE = f"{DATA_PATH}ga_result.json"
 GRID_FILE = f"{DATA_PATH}grid.geojson"
 SEED_POINTS_FILE = f"{DATA_PATH}seed_points.geojson"
 
@@ -42,14 +42,27 @@ seed_points = gpd.read_file(SEED_POINTS_FILE)
 # %%
 with open(GEN_FILE, "r") as fp:
     data = json.load(fp)
-generations = ga.jsonable_to_gens(data)
+result = ga.jsonable_to_ga_run(data)
 
 # %%
-iterations = len(generations)
-demand_weight = 0.8
-directness_weight = 0.2
-max_edges = int(seed_points["neighbours"].apply(len).sum() // 2)
-budget = max_edges // 5
+iterations = result["iterations"]
+budget = result["budget"]
+elitism = result["elitism"]
+n_elites = result["n_elites"]
+tournament_size = result["tournament_size"]
+mutation_probability = result["mutation_probability"]
+demand_weight = result["demand_weight"]
+directness_weight = result["directness_weight"]
+
+print(f"Iterations: {iterations}")
+print(f"Population size: {len(result["generations"][0])}")
+print(f"Budget: {budget}")
+print(f"Elitism: {elitism}")
+print(f"Number of elites: {n_elites}")
+print(f"Tournament size: {tournament_size}")
+print(f"Mutation probability: {mutation_probability}")
+print(f"Demand weight: {demand_weight}")
+print(f"Directness weight: {demand_weight}")
 
 # %% [markdown]
 # ## Plots
@@ -61,27 +74,21 @@ budget = max_edges // 5
 
 # %%
 plot.scatter(
-    generations,
-    demand_weight,
-    directness_weight,
+    result,
     "fitness",
     budget,
     save=False,
     output_path=PLOT_PATH,
 )
 plot.scatter(
-    generations,
-    demand_weight,
-    directness_weight,
+    result,
     "demand_coverage",
     budget,
     save=False,
     output_path=PLOT_PATH,
 )
 plot.scatter(
-    generations,
-    demand_weight,
-    directness_weight,
+    result,
     "directness",
     budget,
     save=False,
@@ -89,13 +96,11 @@ plot.scatter(
 )
 
 # %%
-plot.progress(generations, budget, save=False, output_path=PLOT_PATH)
+plot.progress(result, budget, save=False, output_path=PLOT_PATH)
 
 # %%
 front_networks = plot.tradeoff(
-    generations,
-    demand_weight,
-    directness_weight,
+    result,
     budget,
     save=False,
     output_path=PLOT_PATH,

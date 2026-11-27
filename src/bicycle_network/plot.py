@@ -218,14 +218,13 @@ def population(
 
 
 def scatter(
-    gens,
-    demand_weight,
-    directness_weight,
+    result,
     measure="fitness",
     budget=None,
     save=False,
     output_path="../results/plots/",
 ):
+    gens = result["generations"]
     cmap = mplcm["viridis"]
     pop_ids = sorted(gens)
     norm = Normalize(vmin=pop_ids[0], vmax=pop_ids[-1])
@@ -277,7 +276,7 @@ def scatter(
     ax.text(
         0.98,
         0.02,
-        f"Demand weight: {demand_weight}\nDirectness weight: {directness_weight}",
+        f"Demand weight: {result["demand_weight"]}\nDirectness weight: {result["directness_weight"]}",
         transform=ax.transAxes,
         ha="right",
         va="bottom",
@@ -296,13 +295,13 @@ def scatter(
 
 
 def tradeoff(
-    gens,
-    demand_weight,
-    directness_weight,
+    result,
     budget,
     save=False,
     output_path="../results/plots/",
 ):
+    gens = result["generations"]
+
     def _edge_key(nw):
         """
         Hashable identity of a network, its set of edges.
@@ -397,6 +396,8 @@ def tradeoff(
     )
 
     # Iso-fitness line through the best feasible network
+    demand_weight = result["demand_weight"]
+    directness_weight = result["directness_weight"]
     score = demand_weight * np.array(x) + directness_weight * np.array(y)
     b = int(np.argmax(score))
     slope = -demand_weight / directness_weight if directness_weight else np.inf
@@ -447,7 +448,8 @@ def tradeoff(
     return [feasible[i] for i in front]
 
 
-def progress(gens, budget=None, save=False, output_path="../results/plots/"):
+def progress(result, budget=None, save=False, output_path="../results/plots/"):
+    gens = result["generations"]
     pop_ids = sorted(gens)
     panels = [
         ("fitness", lambda nw: nw["fitness"], "Fitness"),

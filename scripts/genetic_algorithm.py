@@ -68,7 +68,7 @@ directness_weight = 0.2
 max_edges = int(seed_points["neighbours"].apply(len).sum() // 2)
 budget = max_edges // 5
 
-generations = ga.run(
+result = ga.run(
     start_pop,
     iterations,
     budget,
@@ -97,6 +97,6 @@ print(f"Max edges: {max_edges}")
 # ## Save generations as JSON
 
 # %%
-filename = "generations"
+filename = "ga_result"
 with open(f"{DATA_PATH}{filename}.json", "w") as json_file:
-    json.dump(ga.generations_to_jsonable(generations), json_file, indent=4)
+    json.dump(ga.ga_run_to_jsonable(result), json_file, indent=4)
